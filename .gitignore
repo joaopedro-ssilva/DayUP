@@ -29,3 +29,6 @@ Thumbs.db
 # Alembic local sqlite (caso alguém rode)
 *.sqlite
 *.db
+
+# Backups do Postgres gerados na VPS
+deploy/backups/

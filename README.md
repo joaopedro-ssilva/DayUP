@@ -185,44 +185,13 @@ O script é **idempotente**: rodar de novo apaga e recria os dados.
 
 ---
 
-## Deploy grátis (opções)
+## Deploy
 
-O Day UP tem três peças: **frontend estático**, **backend Python** e **Postgres + Redis**. Nem todo serviço grátis cobre todos.
+No ar em **https://dayup.biigstudio.com.br**.
 
-### Combo mais suave (tudo free tier)
+Produção roda numa VM Always Free da Oracle com `docker compose`: Caddy (HTTPS automático + frontend) → FastAPI → Postgres + Redis, com só as portas 80/443 expostas.
 
-| Peça | Serviço | Nota |
-|---|---|---|
-| Frontend (build estático) | **Vercel** ou **Cloudflare Pages** | Deploy via `git push`, HTTPS grátis, CDN global. Cloudflare tem banda ilimitada, Vercel tem melhor DX |
-| Backend (FastAPI) | **Render** (Web Service Free) | Sleep após 15min ocioso → primeira request depois demora ~30s ("cold start"). Aceitável pra portfólio, ruim pra produção |
-| Postgres | **Neon** (Serverless Postgres) | 3 GB grátis, sempre ligado, tem branching (útil pra staging) |
-| Redis | **Upstash** (Serverless Redis) | 10k comandos/dia grátis, latência boa, HTTPS REST opcional |
-
-**Prós**: zero custo, HTTPS em tudo, deploy contínuo via GitHub
-**Contras**: cold start do Render (~30s na primeira request após ociosidade). Se incomodar, um cron externo (ex: cron-job.org) fazendo ping a cada 10min mantém quente
-
-### Alternativas
-
-- **Fly.io** — free tier decente (2 VMs pequenas), sem sleep. Pede cartão. Tem Postgres deles próprio (free até 3GB). Mais próximo de VPS mas grátis.
-- **Railway** — teve free tier, hoje é trial. Bom pra prototipar mas não sustentável.
-- **Supabase** — só Postgres + auth. Você não usaria a auth deles (Day UP tem própria), mas o banco é bom.
-- **Aiven for PostgreSQL** — 1 mês grátis pra testar.
-
-### VPS (não grátis, mas barato — R$25-40/mês)
-
-Se preferir controle total, um VPS pequeno (Hostinger, DigitalOcean, Vultr) roda tudo num container só:
-
-```
-docker compose up -d   # Postgres + Redis + backend + Caddy pra HTTPS
-```
-
-Vantagens: sem cold start, sem limites de conexão, backup manual controlado. Precisa configurar Caddy/Traefik pra HTTPS automático.
-
-### Recomendação
-
-Pra apresentar o projeto agora: **Vercel (frontend) + Render (backend) + Neon (Postgres) + Upstash (Redis)**. Aceita o cold start ou mantém quente com ping externo. Custa R$0.
-
-Pra produção séria depois: VPS de R$25/mês numa Hostinger/DO/Vultr, ou Fly.io se quiser manter distribuído.
+Passo a passo completo em [deploy/README.md](deploy/README.md).
 
 ---
 

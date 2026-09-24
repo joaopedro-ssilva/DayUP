@@ -39,7 +39,8 @@ from app.security import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Janelas e limites. TODO em prod atrás de proxy: usar X-Forwarded-For pro client_ip.
+# Janelas e limites. Em prod o uvicorn roda com --proxy-headers, então
+# request.client.host já é o IP real do usuário (repassado pelo Caddy).
 _REGISTER_LIMIT, _REGISTER_WINDOW = 10, 60 * 60        # 10/hora por IP
 _LOGIN_IP_LIMIT, _LOGIN_IP_WINDOW = 20, 60 * 15         # 20/15min por IP
 _LOGIN_EMAIL_LIMIT, _LOGIN_EMAIL_WINDOW = 5, 60 * 15    # 5/15min por e-mail
