@@ -4,12 +4,12 @@
 #
 # Uso, na VM (baixar e depois rodar — não use "curl | bash", comandos internos
 # que leem stdin engoliriam o resto do script):
-#   curl -fsSLO https://raw.githubusercontent.com/bigjujas/DayUP/main/deploy/setup-vm.sh
+#   curl -fsSLO https://raw.githubusercontent.com/joaopedro-ssilva/DayUP/main/deploy/setup-vm.sh
 #   bash setup-vm.sh dayup.biigstudio.com.br
 set -euo pipefail
 
 DOMAIN="${1:?uso: bash setup-vm.sh dayup.biigstudio.com.br}"
-REPO_URL="https://github.com/bigjujas/DayUP.git"
+REPO_URL="https://github.com/joaopedro-ssilva/DayUP.git"
 APP_DIR="$HOME/DayUP"
 
 . /etc/os-release

@@ -67,7 +67,7 @@ responder com o IP da VM.
 Com o domínio já apontando pra VM e as portas liberadas na Oracle:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/bigjujas/DayUP/main/deploy/setup-vm.sh
+curl -fsSLO https://raw.githubusercontent.com/joaopedro-ssilva/DayUP/main/deploy/setup-vm.sh
 bash setup-vm.sh dayup.biigstudio.com.br
 ```
 
@@ -101,7 +101,7 @@ sudo netfilter-persistent save
 ## 5. Código e segredos
 
 ```bash
-git clone https://github.com/bigjujas/DayUP.git
+git clone https://github.com/joaopedro-ssilva/DayUP.git
 cd DayUP/deploy
 cp .env.example .env
 openssl rand -hex 32   # rode 2x: um valor pra POSTGRES_PASSWORD, outro pra SESSION_SECRET
