@@ -6,7 +6,14 @@ from app.routes import auth, day_logs, goals
 
 settings = get_settings()
 
-app = FastAPI(title="Day UP API", version="0.1.0")
+# Em produção a API não expõe a documentação interativa.
+app = FastAPI(
+    title="Day UP API",
+    version="0.1.0",
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
