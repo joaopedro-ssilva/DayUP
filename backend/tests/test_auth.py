@@ -218,12 +218,12 @@ def test_change_password_revokes_other_sessions_and_rotates_current_one(
 def test_demo_account_is_protected_from_writes(client: TestClient, cleanup_emails: list[str]):
     demo_email = _unique_email()
     cleanup_emails.append(demo_email)
+    # Cadastra antes de marcar como demo: o cadastro com o e-mail demo é bloqueado.
+    _register(client, demo_email)
     real_settings = get_settings()
     app.dependency_overrides[get_settings] = lambda: real_settings.model_copy(
         update={"demo_email": demo_email}
     )
-
-    _register(client, demo_email)
     headers = _csrf_headers(client)
 
     patch_resp = client.patch("/auth/me", json={"name": "Outro Nome"}, headers=headers)
@@ -331,3 +331,29 @@ def test_export_is_scoped_to_the_caller_only(client: TestClient, cleanup_emails:
     goal_names = {g["name"] for g in data["goals"]}
     assert "Meta da A" in goal_names
     assert "Meta da B" not in goal_names
+
+
+def test_demo_email_is_reserved_for_register_and_change_email(
+    client: TestClient, cleanup_emails: list[str]
+):
+    demo_email = get_settings().demo_email
+    resp = client.post(
+        "/auth/register",
+        json={
+            "email": demo_email,
+            "name": "Intruso",
+            "password": _PASSWORD,
+            "confirm_password": _PASSWORD,
+        },
+    )
+    assert resp.status_code == 409
+
+    email = _unique_email()
+    cleanup_emails.append(email)
+    assert _register(client, email).status_code == 201
+    resp = client.post(
+        "/auth/me/change-email",
+        json={"new_email": demo_email, "confirm_new_email": demo_email, "password": _PASSWORD},
+        headers=_csrf_headers(client),
+    )
+    assert resp.status_code == 409

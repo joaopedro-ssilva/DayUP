@@ -84,8 +84,14 @@ def register(
 ) -> User:
     enforce(f"register:ip:{_client_ip(request)}", _REGISTER_LIMIT, _REGISTER_WINDOW)
 
+    email = payload.email.lower()
+    # O e-mail da conta demo é reservado mesmo antes do seed rodar, senão alguém
+    # poderia ocupá-lo (e o seed depois sobrescreveria a senha dessa pessoa).
+    if email == settings.demo_email:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esse e-mail já está cadastrado.")
+
     user = User(
-        email=payload.email.lower(),
+        email=email,
         name=payload.name,
         password_hash=hash_password(payload.password),
     )
@@ -195,6 +201,8 @@ def change_email(
     new_email = payload.new_email.lower()
     if new_email == user.email:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esse já é o seu e-mail atual.")
+    if new_email == settings.demo_email:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esse e-mail já está em uso.")
 
     user.email = new_email
     # E-mail trocado ainda não foi confirmado (verificação é V1, pendente de serviço de e-mail).
