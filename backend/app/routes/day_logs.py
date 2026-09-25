@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import any_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -89,7 +89,7 @@ def _unrated_goal_weights(
     stmt = select(Goal.weight).where(
         Goal.user_id == user.id,
         Goal.archived_at.is_(None),
-        Goal.days_of_week.any(weekday),
+        any_(Goal.days_of_week) == weekday,
     )
     if entry_goal_ids:
         stmt = stmt.where(Goal.id.not_in(entry_goal_ids))

@@ -47,7 +47,7 @@ def create_session(user_id: str, settings: Settings) -> str:
     r = _get_redis()
     index_key = _user_index_key(user_id)
     with r.pipeline() as pipe:
-        pipe.setex(_key(session_id), ttl, user_id)
+        pipe.set(_key(session_id), user_id, ex=ttl)
         pipe.sadd(index_key, session_id)
         # TTL do índice sempre renovado pra acompanhar a sessão mais nova do usuário.
         pipe.expire(index_key, ttl)
