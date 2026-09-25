@@ -19,11 +19,20 @@ VALID_LEVELS = (0.0, 0.4, 0.7, 1.0)
 # ---------- Auth ----------
 
 
+def _strip_str(v: object) -> object:
+    """Validator mode="before": tira espaços nas pontas antes de qualquer checagem de
+    tamanho — Field(strip_whitespace=True) só normaliza a string depois, então um
+    nome "   " passaria pelo min_length. Usado em todo campo de nome do arquivo."""
+    return v.strip() if isinstance(v, str) else v
+
+
 class RegisterIn(BaseModel):
     email: EmailStr
-    name: Annotated[str, Field(min_length=2, max_length=30, strip_whitespace=True)]
+    name: Annotated[str, Field(min_length=2, max_length=30)]
     password: Annotated[str, Field(min_length=8, max_length=128)]
     confirm_password: Annotated[str, Field(min_length=8, max_length=128)]
+
+    _strip_name = field_validator("name", mode="before")(_strip_str)
 
     @field_validator("name")
     @classmethod
@@ -33,7 +42,7 @@ class RegisterIn(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def _validate_passwords(self) -> "RegisterIn":
+    def _validate_passwords(self) -> RegisterIn:
         if self.password != self.confirm_password:
             raise ValueError("As senhas não conferem.")
         if not _PASSWORD_RE.match(self.password):
@@ -43,11 +52,13 @@ class RegisterIn(BaseModel):
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str
+    password: Annotated[str, Field(max_length=128)]
 
 
 class UpdateNameIn(BaseModel):
-    name: Annotated[str, Field(min_length=2, max_length=30, strip_whitespace=True)]
+    name: Annotated[str, Field(min_length=2, max_length=30)]
+
+    _strip_name = field_validator("name", mode="before")(_strip_str)
 
     @field_validator("name")
     @classmethod
@@ -60,27 +71,31 @@ class UpdateNameIn(BaseModel):
 class ChangeEmailIn(BaseModel):
     new_email: EmailStr
     confirm_new_email: EmailStr
-    password: str
+    password: Annotated[str, Field(max_length=128)]
 
     @model_validator(mode="after")
-    def _validate_match(self) -> "ChangeEmailIn":
+    def _validate_match(self) -> ChangeEmailIn:
         if self.new_email.lower() != self.confirm_new_email.lower():
             raise ValueError("Os e-mails não conferem.")
         return self
 
 
 class ChangePasswordIn(BaseModel):
-    current_password: str
+    current_password: Annotated[str, Field(max_length=128)]
     new_password: Annotated[str, Field(min_length=8, max_length=128)]
     confirm_new_password: Annotated[str, Field(min_length=8, max_length=128)]
 
     @model_validator(mode="after")
-    def _validate_passwords(self) -> "ChangePasswordIn":
+    def _validate_passwords(self) -> ChangePasswordIn:
         if self.new_password != self.confirm_new_password:
             raise ValueError("As senhas não conferem.")
         if not _PASSWORD_RE.match(self.new_password):
             raise ValueError("A senha precisa ter pelo menos 8 caracteres, com letras e números.")
         return self
+
+
+class DeleteAccountIn(BaseModel):
+    password: Annotated[str, Field(max_length=128)]
 
 
 class UserOut(BaseModel):
@@ -100,7 +115,10 @@ class GoalIn(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     category: GoalCategory
     weight: Annotated[int, Field(ge=1, le=3)] = 2
-    days_of_week: list[int]
+    # max_length=7 é checado sobre a lista bruta, antes do dedup abaixo.
+    days_of_week: Annotated[list[int], Field(max_length=7)]
+
+    _strip_name = field_validator("name", mode="before")(_strip_str)
 
     @field_validator("days_of_week")
     @classmethod
@@ -137,13 +155,20 @@ class GoalEntryIn(BaseModel):
             raise ValueError("level deve ser 0.0, 0.4, 0.7 ou 1.0.")
         return v
 
+    @field_validator("done_at")
+    @classmethod
+    def _validate_done_at(cls, v: time | None) -> time | None:
+        if v is not None and v.tzinfo is not None:
+            raise ValueError("done_at não pode conter fuso horário.")
+        return v
+
 
 class DayUpdateIn(BaseModel):
     """Salvar progresso parcial de um dia (PUT). Não finaliza."""
 
     mood: str | None = None
     note: Annotated[str | None, Field(max_length=1000)] = None
-    entries: list[GoalEntryIn] = []
+    entries: Annotated[list[GoalEntryIn], Field(max_length=60)] = []
 
     @field_validator("mood")
     @classmethod
