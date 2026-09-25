@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -12,6 +12,8 @@ from app.schemas import GoalIn, GoalOut
 from app.security import get_current_user, now_utc
 
 router = APIRouter(prefix="/goals", tags=["goals"])
+
+MAX_ACTIVE_GOALS = 100
 
 
 @router.get("", response_model=list[GoalOut])
@@ -32,6 +34,14 @@ def create_goal(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Goal:
+    active_count = db.execute(
+        select(func.count())
+        .select_from(Goal)
+        .where(Goal.user_id == user.id, Goal.archived_at.is_(None))
+    ).scalar_one()
+    if active_count >= MAX_ACTIVE_GOALS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Limite de 100 metas ativas atingido.")
+
     goal = Goal(
         user_id=user.id,
         name=payload.name,
