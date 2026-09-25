@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(cp -r 'C:\\\\Users\\\\joaopedro\\\\.claude\\\\projects\\\\c--Users-joaopedro-Documents-DevFiles-DayUP\\\\85c08bce-1d52-4cd6-ae4e-b1cf06ddcf5c\\\\tool-results\\\\extracted\\\\webfetch-1779227176840-6mgo4j\\\\dayup' 'c:\\\\Users\\\\joaopedro\\\\Documents\\\\DevFiles\\\\DayUP\\\\.design-ref' && ls 'c:\\\\Users\\\\joaopedro\\\\Documents\\\\DevFiles\\\\DayUP\\\\.design-ref/project')"
-    ]
-  }
-}

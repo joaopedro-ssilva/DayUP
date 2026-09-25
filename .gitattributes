@@ -1,3 +1,5 @@
+# Normaliza fim de linha no repositório (LF)
+* text=auto
 # Scripts rodam no Linux da VPS — sempre LF
 *.sh text eol=lf
 Caddyfile text eol=lf
