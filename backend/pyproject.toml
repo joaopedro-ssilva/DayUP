@@ -13,9 +13,6 @@ dependencies = [
     "pydantic-settings>=2.6",
     "email-validator>=2.2",
     "argon2-cffi>=23.1",
-    "itsdangerous>=2.2",
-    "python-multipart>=0.0.12",
-    "celery>=5.4",
     "redis>=5.2",
 ]
 
@@ -39,3 +36,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.params.Depends", "fastapi.params.Query"]
