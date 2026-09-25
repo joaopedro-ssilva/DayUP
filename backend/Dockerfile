@@ -6,11 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Instala só as dependências primeiro (lidas do pyproject), para o Docker
+# Instala só as dependências primeiro (versões travadas), para o Docker
 # reaproveitar essa camada quando apenas o código mudar.
-COPY pyproject.toml ./
-RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" > requirements.txt \
-    && pip install -r requirements.txt
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
 COPY alembic.ini ./
 COPY alembic ./alembic

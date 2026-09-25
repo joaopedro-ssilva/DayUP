@@ -42,8 +42,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/pyproject.toml
-      - run: python -m pip install -e ".[dev]"
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/pyproject.toml
+      # Mesmas versões da produção + ferramentas de dev.
+      - run: python -m pip install -r requirements.txt -e ".[dev]"
       - run: ruff check .
       - run: alembic upgrade head
       - run: python -m pytest -q
