@@ -10,7 +10,7 @@ export default function Landing() {
       <HowItWorks />
       <Features />
       <Compare />
-      <Testimonials />
+      <ForWho />
       <Faq />
       <FinalCta />
       <Footer />
@@ -19,6 +19,13 @@ export default function Landing() {
 }
 
 // ───────────────── NAV ─────────────────
+
+const SECTION_LINKS = [
+  { label: "Como funciona", href: "#como-funciona" },
+  { label: "Recursos", href: "#recursos" },
+  { label: "Pra quem é", href: "#pra-quem-e" },
+  { label: "FAQ", href: "#faq" },
+];
 
 function Nav() {
   return (
@@ -34,13 +41,13 @@ function Nav() {
         </span>
       </Link>
       <div className="hidden lg:flex gap-7 ml-2">
-        {["Como funciona", "Recursos", "Depoimentos", "FAQ"].map((l) => (
+        {SECTION_LINKS.map((l) => (
           <a
-            key={l}
-            href={`#${l.toLowerCase().replace(/\s+/g, "-").replace("ã", "a")}`}
+            key={l.href}
+            href={l.href}
             className="text-[14px] font-medium text-text-2 hover:text-text"
           >
-            {l}
+            {l.label}
           </a>
         ))}
       </div>
@@ -93,7 +100,7 @@ function Hero() {
             Novo
           </span>
           <span>
-            Lançamento da <b className="text-text">Primeira versão!</b>
+            <b className="text-text">Primeira versão</b> no ar
           </span>
         </div>
 
@@ -130,27 +137,16 @@ function Hero() {
           </Link>
         </div>
 
-        <div className="inline-flex items-center gap-4 text-[13px] text-muted">
-          <div className="flex">
-            {["JP", "MR", "BC", "AL"].map((s, i) => (
-              <span
-                key={s}
-                className="w-[26px] h-[26px] rounded-full border-2 border-bg grid place-items-center text-[11px] font-bold text-ink"
-                style={{
-                  background: "linear-gradient(135deg, #c68410, #f5b528)",
-                  marginLeft: i === 0 ? 0 : -8,
-                }}
-              >
-                {s}
+        <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2 m-0 p-0 list-none text-[13px] text-muted">
+          {["Grátis, sem cartão", "Feito pro celular", "Check-in em poucos toques"].map((t) => (
+            <li key={t} className="inline-flex items-center gap-1.5">
+              <span className="text-primary" aria-hidden>
+                ✓
               </span>
-            ))}
-          </div>
-          <div>
-            <span className="text-primary tracking-widest">★★★★★</span>{" "}
-            <b className="text-text">4.9</b> · mais de{" "}
-            <b className="text-text">12 mil</b> dias registrados
-          </div>
-        </div>
+              {t}
+            </li>
+          ))}
+        </ul>
 
         <HeroPreview />
       </div>
@@ -344,10 +340,10 @@ function PreviewRow({
 
 function Stats() {
   const items = [
-    { num: "8k+", lbl: "dias registrados pelos usuários" },
-    { num: "87%", lbl: "mantêm a streak após 30 dias" },
-    { num: "2.4×", lbl: "mais consistência vs. checklist comum" },
-    { num: "4.9★", lbl: "avaliação média na comunidade" },
+    { num: "0–100", lbl: "é o score do seu dia, pesado pela importância de cada meta" },
+    { num: "4", lbl: "níveis de esforço por meta, do não feito ao perfeito" },
+    { num: "48h", lbl: "pra registrar um dia sem quebrar o streak" },
+    { num: "R$0", lbl: "pra usar. Sem cartão, sem plano escondido" },
   ];
   return (
     <section
@@ -469,7 +465,7 @@ function Features() {
             Carro-chefe
           </div>
           <h3 className="display text-[22px] lg:text-[24px] uppercase mb-3">
-            Estilo hístorico de partidas
+            Estilo histórico de partidas
           </h3>
           <p className="text-[14px] text-text-2 leading-relaxed">
             Cada dia vira uma "partida" com tier de qualidade, score e metas completadas. Veja
@@ -708,64 +704,55 @@ function CompareCol({
   );
 }
 
-// ───────────────── TESTIMONIALS ─────────────────
+// ───────────────── PRA QUEM É ─────────────────
 
-function Testimonials() {
+function ForWho() {
   const items = [
     {
-      quote:
-        "Já tentei uns 5 apps de hábito. Esse foi o primeiro que eu abri todo dia espontaneamente — porque parece que eu tô subindo no LoL, só que da minha vida.",
-      name: "Rafael Furtado",
-      sub: "Streak 47 dias",
-      av: "RF",
+      pain: "Já baixei cinco apps de hábito e larguei todos.",
+      answer:
+        "Aqui cada dia vira uma partida com placar. O histórico dá vontade de voltar, coisa que lista de checkbox nunca deu.",
+      feature: "Histórico estilo partida",
     },
     {
-      quote:
-        "Os pesos por meta mudam tudo. Saber que pular o treino vale mais que pular a leitura me ajuda a priorizar de verdade.",
-      name: "Bia Cardoso",
-      sub: "Streak 22 dias",
-      av: "BC",
+      pain: "Minha semana não é igual todo dia.",
+      answer:
+        "Cada meta vale só nos dias que você escolher: treino seg, qua e sex, leitura todo dia. E tem peso, então pular o treino pesa mais que pular a leitura.",
+      feature: "Metas por dia da semana, com peso",
     },
     {
-      quote:
-        "Day Off é o feature que faltava em todo outro app. Não me sinto culpado por descansar — me sinto produtivo por ter descansado certo.",
-      name: "Mateus Lins",
-      sub: "Streak 14 dias",
-      av: "ML",
+      pain: "Se eu falho um dia, desisto de tudo.",
+      answer:
+        "Descanso planejado vira Day Off e o streak continua. E um dia com nota 45 ainda é um dia registrado, bem melhor que um dia em branco.",
+      feature: "Day Off e score parcial",
     },
   ];
 
   return (
-    <Section id="depoimentos">
+    <Section id="pra-quem-e">
       <SectionHead
-        eyebrow="Depoimentos"
+        eyebrow="Pra quem é"
         title={
           <>
-            Pessoas que <span className="text-primary">subiram de nível</span>
+            Pra quem já <span className="text-primary">desistiu</span>
             <br />
-            na vida real
+            de outro app de hábito
           </>
         }
+        sub="O Day UP nasceu das desculpas que a gente mesmo dava. Reconhece alguma?"
       />
       <div className="grid lg:grid-cols-3 gap-4">
         {items.map((t) => (
           <article
-            key={t.name}
+            key={t.feature}
             className="bg-surface border border-border rounded-[14px] p-6 flex flex-col gap-4"
           >
-            <div className="text-primary tracking-widest text-[14px]">★★★★★</div>
-            <p className="text-[15px] text-text leading-relaxed m-0">"{t.quote}"</p>
-            <div className="flex items-center gap-3 mt-auto pt-3 border-t border-border">
-              <span
-                className="w-[38px] h-[38px] rounded-full grid place-items-center font-bold text-ink text-[14px]"
-                style={{ background: "linear-gradient(135deg, #c68410, #f5b528)" }}
-              >
-                {t.av}
-              </span>
-              <div>
-                <div className="font-semibold text-[14px]">{t.name}</div>
-                <div className="text-[12px] text-muted">{t.sub}</div>
-              </div>
+            <p className="display text-[22px] uppercase leading-tight text-text m-0">
+              “{t.pain}”
+            </p>
+            <p className="text-[15px] text-text-2 leading-relaxed m-0">{t.answer}</p>
+            <div className="mt-auto pt-3 border-t border-border text-[13px] font-semibold text-primary">
+              → {t.feature}
             </div>
           </article>
         ))}
@@ -780,7 +767,7 @@ function Faq() {
   const items = [
     {
       q: "É grátis?",
-      a: "Sim. O Day UP tem versão gratuita completa com metas ilimitadas, histórico ilimitado e todas as métricas. Plano Pro virá com insights extras no futuro.",
+      a: "Sim, e completo: metas, histórico e todas as métricas, sem limite e sem cartão de crédito.",
     },
     {
       q: "Como o score é calculado?",
@@ -788,7 +775,7 @@ function Faq() {
     },
     {
       q: "E se eu falhar um dia?",
-      a: "Você tem até 48h após o dia pra registrar. Se passar disso, conta como 'não registrado' e quebra streak. Mas Day Off declarado a qualquer momento mantém streak intacto.",
+      a: "Dá pra registrar um dia até o fim do dia seguinte sem perder o streak. Passou disso, ele conta como não registrado e o streak zera. Vai descansar de propósito? Marque Day Off: o streak continua e o dia não entra na média.",
     },
     {
       q: "Funciona no celular?",
@@ -796,7 +783,7 @@ function Faq() {
     },
     {
       q: "Meus dados são privados?",
-      a: "Totalmente. Tudo armazenado de forma segura, nada compartilhado, e você pode exportar ou apagar tudo a qualquer momento.",
+      a: "Sim. Suas metas, notas e histórico só aparecem pra você: não existe perfil público nem ranking. Sua senha nunca é guardada, só um hash seguro dela.",
     },
   ];
 
@@ -891,7 +878,7 @@ function Footer() {
   return (
     <footer className="border-t border-border py-12 px-5 lg:px-10 bg-bg-2">
       <div className="max-w-[1180px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
-        <div className="col-span-2 lg:col-span-1">
+        <div className="col-span-2">
           <Link to="/" className="brand text-[22px]">
             <span className="brand-flame">▲</span>
             <span>
@@ -900,42 +887,64 @@ function Footer() {
             </span>
           </Link>
           <p className="text-text-2 text-[13px] mt-3 max-w-[280px]">
-            Suba de nível, um dia por vez — O tracker que transforma seus dias em partidas.
+            Suba de nível, um dia por vez — o tracker que transforma seus dias em partidas.
           </p>
         </div>
-        <FooterCol title="Produto" links={["Como funciona", "Recursos", "Preços", "Mudanças"]} />
-        <FooterCol title="Empresa" links={["Sobre", "Blog", "Contato"]} />
-        <FooterCol title="Legal" links={["Privacidade", "Termos", "Cookies"]} />
+        <FooterCol title="Produto" links={SECTION_LINKS} />
+        <FooterCol
+          title="Conta"
+          links={[
+            { label: "Entrar", href: "/login" },
+            { label: "Criar conta", href: "/cadastro" },
+          ]}
+        />
       </div>
-      <div className="max-w-[1180px] mx-auto pt-6 border-t border-border flex items-center justify-between text-[12px] text-muted">
+      <div className="max-w-[1180px] mx-auto pt-6 border-t border-border flex flex-wrap items-center justify-between gap-3 text-[12px] text-muted">
         <span>© {new Date().getFullYear()} Day UP. Feito por quem também precisava.</span>
-        <div className="flex gap-2">
-          {["𝕏", "◉", "◇"].map((s) => (
-            <a
-              key={s}
-              href="#"
-              className="w-8 h-8 grid place-items-center border border-border rounded-lg text-text-2 hover:border-primary hover:text-primary transition-colors"
-            >
-              {s}
-            </a>
-          ))}
-        </div>
+        <a
+          href="https://github.com/joaopedro-ssilva/DayUP"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-text-2 hover:text-primary transition-colors"
+        >
+          Código aberto no GitHub ↗
+        </a>
       </div>
     </footer>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: string[] }) {
+function FooterCol({
+  title,
+  links,
+}: {
+  title: string;
+  links: { label: string; href: string }[];
+}) {
   return (
     <div>
       <h5 className="text-[11px] uppercase tracking-[0.1em] text-muted font-semibold mb-3">
         {title}
       </h5>
-      {links.map((l) => (
-        <a key={l} href="#" className="block text-text-2 text-[13px] py-1.5 hover:text-primary">
-          {l}
-        </a>
-      ))}
+      {links.map((l) =>
+        l.href.startsWith("/") ? (
+          <Link
+            key={l.href}
+            to={l.href}
+            className="block text-text-2 text-[13px] py-1.5 hover:text-primary"
+          >
+            {l.label}
+          </Link>
+        ) : (
+          <a
+            key={l.href}
+            href={l.href}
+            className="block text-text-2 text-[13px] py-1.5 hover:text-primary"
+          >
+            {l.label}
+          </a>
+        ),
+      )}
     </div>
   );
 }

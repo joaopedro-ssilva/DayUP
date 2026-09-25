@@ -11,11 +11,6 @@ import {
 
 import { useMarkOnboardingSeen } from "@/lib/queries";
 
-// MODO TESTE: não persiste onboarding_seen no backend, então o onboarding
-// volta a aparecer toda vez que a Home recarrega. Trocar para `true` quando
-// o teste acabar (restaura o comportamento normal: aparece uma vez só).
-const PERSIST_ONBOARDING_SEEN = false;
-
 type Step = {
   icon: LucideIcon;
   title: React.ReactNode;
@@ -61,9 +56,8 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
     if (closing || mark.isPending) return;
     setClosing(true);
     try {
-      if (PERSIST_ONBOARDING_SEEN) {
-        await mark.mutateAsync();
-      }
+      // Grava na conta: o onboarding não volta nem em outro dispositivo.
+      await mark.mutateAsync();
     } finally {
       onClose();
     }
