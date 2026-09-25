@@ -202,7 +202,7 @@ def run() -> None:
             f"  Dias:     {len(HISTORY)} "
             f"(de {(today - timedelta(days=1)).isoformat()} ate {first_day.isoformat()})"
         )
-        print(f"  Hoje:     em aberto, sem registro")
+        print("  Hoje:     em aberto, sem registro")
         print()
     finally:
         db.close()

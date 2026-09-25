@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 from sqlalchemy import (
     ARRAY,
@@ -26,14 +26,14 @@ from app.db import Base
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _uuid() -> uuid.UUID:
     return uuid.uuid4()
 
 
-class GoalCategory(str, enum.Enum):
+class GoalCategory(enum.StrEnum):
     health = "health"
     study = "study"
     wellness = "wellness"
@@ -41,7 +41,7 @@ class GoalCategory(str, enum.Enum):
     sleep = "sleep"
 
 
-class DayStatus(str, enum.Enum):
+class DayStatus(enum.StrEnum):
     registered = "registered"
     day_off = "day_off"
     missed = "missed"
