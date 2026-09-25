@@ -17,7 +17,7 @@ para o check-in ao vivo na apresentação. Faz update se a conta já existe.
 from __future__ import annotations
 
 import random
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -30,7 +30,7 @@ from app.models import (
     GoalEntry,
     User,
 )
-from app.security import hash_password
+from app.security import hash_password, now_utc
 from app.services.scoring import EntryInput, compute_score
 
 DEMO_EMAIL = "demo@dayup.app"
@@ -89,6 +89,12 @@ HISTORY: list[tuple[int, float | None, str | None]] = [
 ]
 
 
+def _business_today() -> date:
+    """'Hoje' de negócio usado pro seed — data UTC, mesmo critério do backend
+    (evita date.today(), que depende do fuso do servidor onde o script roda)."""
+    return now_utc().date()
+
+
 def pick_level(target: float, rng: random.Random) -> float:
     """Sorteia um nível (0 / 0.4 / 0.7 / 1.0) com distribuição enviesada para a média alvo."""
     if target >= 0.85:
@@ -106,7 +112,12 @@ def pick_level(target: float, rng: random.Random) -> float:
 
 def run() -> None:
     rng = random.Random(42)
-    today = date.today()
+    today = _business_today()
+    # created_at = primeiro dia do histórico gerado, pra bater com o novo limite
+    # inferior de data (created_at - 1 dia) e com a consistência exibida na Home.
+    max_days_ago = max(days_ago for days_ago, _, _ in HISTORY)
+    first_day = today - timedelta(days=max_days_ago)
+    created_at = datetime(first_day.year, first_day.month, first_day.day, tzinfo=UTC)
 
     db = SessionLocal()
     try:
@@ -117,6 +128,7 @@ def run() -> None:
                 email=DEMO_EMAIL,
                 name=DEMO_NAME,
                 password_hash=hash_password(DEMO_PASSWORD),
+                created_at=created_at,
             )
             db.add(user)
             db.flush()
@@ -124,11 +136,14 @@ def run() -> None:
             # Atualiza senha/nome (caso tenham mudado entre rodadas) e zera tudo
             user.name = DEMO_NAME
             user.password_hash = hash_password(DEMO_PASSWORD)
+            user.created_at = created_at
             for log in list(user.day_logs):
                 db.delete(log)
             for g in list(user.goals):
                 db.delete(g)
             db.flush()
+        # Onboarding sempre reaparece num reseed — é o estado esperado pra apresentação.
+        user.onboarding_seen = False
 
         # ── Metas
         goals: list[Goal] = []
@@ -183,7 +198,10 @@ def run() -> None:
         print(f"  Senha:    {DEMO_PASSWORD}")
         print(f"  Nome:     {DEMO_NAME}")
         print(f"  Metas:    {len(goals)}")
-        print(f"  Dias:     {len(HISTORY)} (de {(today - timedelta(days=1)).isoformat()} ate {(today - timedelta(days=29)).isoformat()})")
+        print(
+            f"  Dias:     {len(HISTORY)} "
+            f"(de {(today - timedelta(days=1)).isoformat()} ate {first_day.isoformat()})"
+        )
         print(f"  Hoje:     em aberto, sem registro")
         print()
     finally:
