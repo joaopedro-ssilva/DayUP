@@ -220,3 +220,5 @@ class StatsOut(BaseModel):
     average_score: float          # média de todos os scores registrados
     score_last_14: float          # média dos últimos 14 dias com score
     score_prev_14: float          # média dos 14 dias anteriores (para variação)
+    scored_days_last_14: int      # quantos dias com score entraram na média acima
+    scored_days_prev_14: int      # idem, para o período anterior
