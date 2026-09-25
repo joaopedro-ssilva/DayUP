@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str = "redis://localhost:6379/0"
 
-    session_secret: str
+    # Sessões vivem só no Redis (session_id opaco no cookie) — não há segredo
+    # de assinatura para gerenciar aqui.
     session_cookie_name: str = "dayup_session"
     session_max_age_seconds: int = 60 * 60 * 24 * 30
     session_cookie_secure: bool = False
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     csrf_header_name: str = "X-CSRF-Token"
 
     frontend_origin: str = "http://localhost:5173"
+
+    # Conta demo pública — protegida contra alteração/exclusão (ver routes/auth.py).
+    demo_email: str = "demo@dayup.app"
 
     @property
     def is_production(self) -> bool:

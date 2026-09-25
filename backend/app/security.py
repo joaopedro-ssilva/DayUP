@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from argon2 import PasswordHasher
@@ -12,9 +12,16 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import User
+from app.ratelimit import enforce
 from app.sessions import create_session, delete_session, read_session
 
 _hasher = PasswordHasher()
+
+# Hash fixo só pra gastar o mesmo tempo de CPU quando o e-mail não existe —
+# evita que a resposta do login seja mais rápida e revele a conta ausente.
+DUMMY_PASSWORD_HASH = _hasher.hash("dayup-timing-safety-dummy-password")
+
+_WRITE_LIMIT, _WRITE_WINDOW = 120, 60  # 120 escritas/min por usuário autenticado
 
 
 def hash_password(password: str) -> str:
@@ -26,6 +33,11 @@ def verify_password(password_hash: str, password: str) -> bool:
         return _hasher.verify(password_hash, password)
     except VerifyMismatchError:
         return False
+
+
+def needs_rehash(password_hash: str) -> bool:
+    """True se o hash foi gerado com parâmetros antigos e deve ser regravado."""
+    return _hasher.check_needs_rehash(password_hash)
 
 
 def _set_cookie(
@@ -54,9 +66,13 @@ def issue_session(response: Response, user: User, settings: Settings) -> str:
     """
     session_id = create_session(str(user.id), settings)
     csrf_token = secrets.token_urlsafe(32)
-    _set_cookie(response, settings.session_cookie_name, session_id, settings=settings, http_only=True)
+    _set_cookie(
+        response, settings.session_cookie_name, session_id, settings=settings, http_only=True
+    )
     # CSRF cookie é legível pelo JS pra ecoar no header (double-submit).
-    _set_cookie(response, settings.csrf_cookie_name, csrf_token, settings=settings, http_only=False)
+    _set_cookie(
+        response, settings.csrf_cookie_name, csrf_token, settings=settings, http_only=False
+    )
     response.headers[settings.csrf_header_name] = csrf_token
     return csrf_token
 
@@ -97,6 +113,15 @@ def get_current_user(
         ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "CSRF token inválido.")
 
+        # Rate limit por usuário autenticado, pra uma conta comprometida ou um
+        # bug no front não conseguir martelar a API indefinidamente.
+        enforce(
+            f"write:user:{user_id}",
+            _WRITE_LIMIT,
+            _WRITE_WINDOW,
+            "Muitas alterações em pouco tempo. Tente novamente em instantes.",
+        )
+
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão inválida.")
@@ -104,12 +129,14 @@ def get_current_user(
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 __all__: list[Any] = [
     "hash_password",
     "verify_password",
+    "needs_rehash",
+    "DUMMY_PASSWORD_HASH",
     "issue_session",
     "clear_session",
     "get_current_user",
