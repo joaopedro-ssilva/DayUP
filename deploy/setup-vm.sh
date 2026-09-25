@@ -20,7 +20,7 @@ VM_IP="$(curl -4 -fsS https://ifconfig.me)"
 DNS_IP="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')"
 if [ "$VM_IP" != "$DNS_IP" ]; then
   echo "O domínio aponta pra '${DNS_IP:-nada}', mas o IP desta VM é $VM_IP."
-  echo "Atualize o IP na DuckDNS e rode de novo (o HTTPS depende disso)."
+  echo "Atualize o registro DNS do domínio pra apontar pra este IP e rode de novo (o HTTPS depende disso)."
   exit 1
 fi
 echo "ok: $DOMAIN → $VM_IP"
@@ -78,7 +78,6 @@ else
   (umask 077 && cat > "$ENV_FILE" <<EOF
 DOMAIN=$DOMAIN
 POSTGRES_PASSWORD=$(openssl rand -hex 32)
-SESSION_SECRET=$(openssl rand -hex 32)
 EOF
   )
   echo "criado com senhas aleatórias"
@@ -102,6 +101,11 @@ sudo docker compose exec -T api python -m scripts.seed_demo | tail -2
 step "Backup diário às 3h"
 CRON_LINE="0 3 * * * bash $APP_DIR/deploy/backup.sh >> $HOME/dayup-backup.log 2>&1"
 (crontab -l 2>/dev/null | grep -Fv "deploy/backup.sh" || true; echo "$CRON_LINE") | crontab -
+echo "ok"
+
+step "Reseed diário da conta demo às 4h30 (desfaz vandalismo na conta pública)"
+SEED_CRON_LINE="30 4 * * * cd $APP_DIR/deploy && docker compose exec -T api python -m scripts.seed_demo >> $HOME/dayup-backup.log 2>&1"
+(crontab -l 2>/dev/null | grep -Fv "scripts.seed_demo" || true; echo "$SEED_CRON_LINE") | crontab -
 echo "ok"
 
 step "Pronto"

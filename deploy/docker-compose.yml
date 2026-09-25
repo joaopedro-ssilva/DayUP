@@ -33,7 +33,6 @@ services:
       ENV: production
       DATABASE_URL: postgresql+psycopg://dayup:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no deploy/.env}@postgres:5432/dayup
       REDIS_URL: redis://redis:6379/0
-      SESSION_SECRET: ${SESSION_SECRET:?defina SESSION_SECRET no deploy/.env}
       SESSION_COOKIE_SECURE: "true"
       FRONTEND_ORIGIN: https://${DOMAIN}
     depends_on:
