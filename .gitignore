@@ -34,6 +34,7 @@ Thumbs.db
 Desktop.ini
 
 # Ferramentas locais de IA e referências de design (ficam só na máquina)
+CLAUDE.md
 .claude/settings.local.json
 .agents/
 skills-lock.json
