@@ -264,6 +264,19 @@ export function useCreateGoal() {
   });
 }
 
+export function useCreateGoalsBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
+    mutationFn: (goals: Omit<Goal, "id" | "archived_at">[]) =>
+      apiFetch<Goal[]>("/goals/batch", { method: "POST", body: { goals } }),
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      return qc.invalidateQueries({ queryKey: qk.goals });
+    },
+  });
+}
+
 export function useUpdateGoal() {
   const qc = useQueryClient();
   return useMutation({

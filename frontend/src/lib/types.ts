@@ -60,10 +60,10 @@ export const CATEGORY_META: Record<
   GoalCategory,
   { label: string; emoji: string; color: string }
 > = {
-  health: { label: "Saúde", emoji: "🍎", color: "#8ad36b" },
+  health: { label: "Saúde", emoji: "💪", color: "#8ad36b" },
   study: { label: "Estudo", emoji: "📚", color: "#6aa7e8" },
   wellness: { label: "Bem-estar", emoji: "🧘", color: "#c084e8" },
-  food: { label: "Alimentação", emoji: "🥗", color: "#f0a868" },
+  food: { label: "Alimentação", emoji: "🍎", color: "#f0a868" },
   sleep: { label: "Sono", emoji: "💤", color: "#8aa3e8" },
 };
 
@@ -115,28 +115,3 @@ export const TIER_META: Record<Tier, { label: string; color: string; bgSoft: str
   okay:    { label: "Regular",   color: "#6aa7e8", bgSoft: "rgba(106,167,232,0.10)" },
   rough:   { label: "Difícil",   color: "#e87a6a", bgSoft: "rgba(232,122,106,0.10)" },
 };
-
-// ── Preset library (frontend-only seeds) ─────────────
-export type Preset = { name: string; emoji: string; desc: string; category: GoalCategory };
-export const PRESETS: Preset[] = [
-  // Saúde
-  { name: "Beber 2L de água", emoji: "💧", desc: "A base de tudo", category: "health" },
-  { name: "Comer 3 frutas", emoji: "🍎", desc: "Vitamina natural", category: "health" },
-  { name: "Tomar vitaminas", emoji: "💊", desc: "Suplementação diária", category: "health" },
-  { name: "Sem refrigerante", emoji: "🚫", desc: "Adeus açúcar", category: "health" },
-  // Estudo
-  { name: "Ler 30 minutos", emoji: "📖", desc: "Livro físico de preferência", category: "study" },
-  { name: "Curso online", emoji: "🎓", desc: "1 aula por dia", category: "study" },
-  { name: "Estudar idioma", emoji: "🗣", desc: "20 min de prática", category: "study" },
-  // Bem-estar
-  { name: "Meditar 10min", emoji: "🧘", desc: "Foco e respiração", category: "wellness" },
-  { name: "Diário do dia", emoji: "✍", desc: "3 frases bastam", category: "wellness" },
-  { name: "3 gratidões", emoji: "🙏", desc: "Antes de dormir", category: "wellness" },
-  { name: "Treino 45min", emoji: "🏋", desc: "Cardio + força", category: "wellness" },
-  // Alimentação
-  { name: "Comer 5 porções de vegetais", emoji: "🥗", desc: "Variedade colorida", category: "food" },
-  { name: "Sem ultra-processados", emoji: "🍔", desc: "Comida de verdade", category: "food" },
-  // Sono
-  { name: "Dormir 8 horas", emoji: "🌙", desc: "Recuperação total", category: "sleep" },
-  { name: "Sem celular no quarto", emoji: "🛌", desc: "Dormir melhor", category: "sleep" },
-];

@@ -14,15 +14,15 @@ import {
 
 import {
   CATEGORY_META,
-  PRESETS,
   WEEKDAY_LABELS,
   type Goal,
   type GoalCategory,
-  type Preset,
 } from "@/lib/types";
+import { CATALOG, CATALOG_BY_ID, PACKS, catalogToGoalIn, type CatalogGoal } from "@/lib/goalCatalog";
 import {
   useArchiveGoal,
   useCreateGoal,
+  useCreateGoalsBatch,
   useGoals,
   useUpdateGoal,
 } from "@/lib/queries";
@@ -60,7 +60,7 @@ export default function Goals() {
   const todayCount = goals.filter((g) => g.days_of_week.includes(today)).length;
   const highCount = goals.filter((g) => g.weight === 3).length;
 
-  const activeNames = useMemo(() => new Set(goals.map((g) => g.name.toLowerCase())), [goals]);
+  const activeNames = useMemo(() => new Set(goals.map((g) => g.name.trim().toLowerCase())), [goals]);
 
   return (
     <div className="px-4 lg:px-7 py-5 lg:py-8 max-w-[1280px] mx-auto flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5">
@@ -407,17 +407,20 @@ function SkeletonGoals() {
 
 function Library({ activeNames }: { activeNames: Set<string> }) {
   const create = useCreateGoal();
+  const batch = useCreateGoalsBatch();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const term = search.toLowerCase();
+  const term = search.trim().toLowerCase();
+  const busy = create.isPending || batch.isPending;
+  const matches = (item: { name: string; desc: string }) =>
+    `${item.name} ${item.desc}`.toLowerCase().includes(term);
+  const matchingGoals = CATALOG.filter(matches);
+  const matchingPacks = PACKS.filter((pack) => matches(pack)
+    || pack.goalIds.some((id) => matches(CATALOG_BY_ID[id])));
 
-  function addPreset(p: Preset) {
-    create.mutate({
-      name: p.name,
-      category: p.category,
-      weight: 2,
-      days_of_week: [0, 1, 2, 3, 4, 5, 6],
-    } as Omit<Goal, "id" | "archived_at">);
+  function addCatalogGoal(goal: CatalogGoal) {
+    batch.reset();
+    create.mutate(catalogToGoalIn(goal));
   }
 
   return (
@@ -439,7 +442,7 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
           <p className="text-[12px] text-text-2 mt-1.5 leading-snug">
             {open
               ? "Adicione com um clique e personalize depois."
-              : `${PRESETS.length} metas curadas — clique para expandir.`}
+              : `${CATALOG.length} metas curadas e ${PACKS.length} packs`}
           </p>
         </div>
         <span
@@ -452,29 +455,60 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
 
       {open && (
         <>
-          <div className="flex items-center gap-2 px-3 py-2.5 bg-bg-2 border border-border rounded-lg mt-3.5 mb-3.5">
-            <Search size={14} className="text-muted" />
+          <div className="flex items-center gap-2 px-3 py-2.5 bg-bg-2 border border-border rounded-lg mt-3.5 mb-3.5 focus-within:border-primary">
+            <Search size={14} className="text-muted shrink-0" aria-hidden="true" />
             <input
+              type="search"
+              name="catalog-search"
+              autoComplete="off"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar meta…"
               aria-label="Buscar meta na biblioteca"
-              className="flex-1 bg-transparent border-0 outline-none text-[16px] text-text placeholder:text-dim"
+              className="flex-1 min-w-0 bg-transparent border-0 text-[16px] text-text placeholder:text-dim"
             />
           </div>
 
-          {create.isError && (
+          {(create.isError || batch.isError) && (
             <p className="text-sm text-rough mb-3" role="alert">
-              {(create.error as Error).message}
+              {create.error?.message ?? batch.error?.message}
             </p>
           )}
 
           <div className="lg:max-h-[calc(100vh-260px)] lg:overflow-y-auto">
+            {matchingPacks.length > 0 && (
+              <section aria-labelledby="library-packs" className="mb-5">
+                <h4 id="library-packs" className="display text-sm uppercase tracking-wider mb-2">Packs prontos</h4>
+                <div className="space-y-2">
+                  {matchingPacks.map((pack) => {
+                    const added = pack.goalIds.every((id) => activeNames.has(CATALOG_BY_ID[id].name.toLowerCase()));
+                    return (
+                      <article key={pack.id} className="p-3 rounded-lg border border-border bg-bg-2">
+                        <h5 className="display text-base flex items-center gap-2">
+                          <span aria-hidden="true">{pack.emoji}</span>{pack.name}
+                        </h5>
+                        <p className="text-xs text-text-2 leading-relaxed mt-1">{pack.desc}</p>
+                        <button type="button" disabled={added || busy}
+                          onClick={() => {
+                            create.reset();
+                            batch.mutate(pack.goalIds.map((id) => catalogToGoalIn(CATALOG_BY_ID[id])));
+                          }}
+                          className="btn w-full mt-2 !text-xs disabled:opacity-60 disabled:cursor-default">
+                          {added ? "Já adicionado" : batch.isPending && batch.variables?.[0]?.name === CATALOG_BY_ID[pack.goalIds[0]].name
+                            ? "Criando…" : `Adicionar ${pack.goalIds.length} metas`}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+            {matchingGoals.length === 0 && matchingPacks.length === 0 && (
+              <p className="text-sm text-muted py-3" role="status">Nenhuma meta ou pack encontrado.</p>
+            )}
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
-              const items = PRESETS.filter(
-                (p) => p.category === cat && p.name.toLowerCase().includes(term),
-              );
+              const items = matchingGoals.filter((p) => p.category === cat);
               if (items.length === 0) return null;
               return (
                 <div key={cat} className="mb-4">
@@ -489,9 +523,9 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
                     const added = activeNames.has(p.name.toLowerCase());
                     return (
                       <button
-                        key={p.name}
-                        onClick={() => !added && addPreset(p)}
-                        disabled={added || create.isPending}
+                        key={p.id}
+                        onClick={() => !added && addCatalogGoal(p)}
+                        disabled={added || busy}
                         className={[
                           "w-full min-h-[44px] flex items-center gap-2.5 p-2 mb-1.5 rounded-lg border bg-bg-2 transition-colors text-left disabled:opacity-60 disabled:cursor-default",
                           added ? "border-border" : "border-border hover:bg-surface hover:border-border-2",
@@ -505,8 +539,8 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
                           {p.emoji}
                         </span>
                         <span className="flex-1 min-w-0">
-                          <span className="block text-[13px] font-medium truncate">{p.name}</span>
-                          <span className="block text-[11px] text-muted truncate">{p.desc}</span>
+                          <span className="block text-[13px] font-medium break-words">{p.name}</span>
+                          <span className="block text-[11px] text-muted">{p.desc}</span>
                         </span>
                         <span
                           className={[
