@@ -5,8 +5,17 @@ import { useLogin, useMe } from "@/lib/queries";
 
 // Só aceita caminhos internos (evita open-redirect via location.state.from):
 // precisa começar com uma única "/" e não pode ser protocol-relative ("//host").
+// Só caminhos internos: "//host" e barras invertidas ("/\host") são tratados
+// como outra origem por alguns navegadores (open redirect).
 function safeRedirect(from: unknown, fallback: string): string {
-  if (typeof from === "string" && from.startsWith("/") && !from.startsWith("//")) return from;
+  if (
+    typeof from === "string" &&
+    from.startsWith("/") &&
+    !from.startsWith("//") &&
+    !from.includes("\\")
+  ) {
+    return from;
+  }
   return fallback;
 }
 
