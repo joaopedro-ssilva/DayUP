@@ -93,7 +93,7 @@ export default function CheckIn() {
           <div className="text-[11px] uppercase tracking-[0.1em] text-muted font-semibold">
             {targetDate === todayISO() ? "Hoje" : "Dia"}
           </div>
-          <h1 className="display text-[22px] lg:text-[26px] leading-none mt-0.5 capitalize">
+          <h1 className="display text-[22px] lg:text-[26px] leading-none mt-0.5 first-letter:uppercase">
             {formatDate(targetDate, { weekday: "short", day: "numeric", month: "short" })}
           </h1>
         </div>

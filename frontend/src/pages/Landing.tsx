@@ -905,7 +905,7 @@ function Footer() {
           href="https://github.com/joaopedro-ssilva/DayUP"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-text-2 hover:text-primary transition-colors"
+          className="inline-flex items-center min-h-[44px] -my-3 text-text-2 hover:text-primary transition-colors"
         >
           Código aberto no GitHub ↗
         </a>
@@ -931,7 +931,7 @@ function FooterCol({
           <Link
             key={l.href}
             to={l.href}
-            className="block text-text-2 text-[13px] py-1.5 hover:text-primary"
+            className="flex items-center min-h-[44px] -my-1.5 text-text-2 text-[13px] py-1.5 hover:text-primary"
           >
             {l.label}
           </Link>
@@ -939,7 +939,7 @@ function FooterCol({
           <a
             key={l.href}
             href={l.href}
-            className="block text-text-2 text-[13px] py-1.5 hover:text-primary"
+            className="flex items-center min-h-[44px] -my-1.5 text-text-2 text-[13px] py-1.5 hover:text-primary"
           >
             {l.label}
           </a>

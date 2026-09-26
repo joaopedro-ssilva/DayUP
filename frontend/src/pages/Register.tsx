@@ -101,7 +101,7 @@ export default function Register() {
       </form>
       <p className="text-sm text-text-2 mt-6 text-center">
         Já tem conta?{" "}
-        <Link to="/login" className="text-primary font-semibold">
+        <Link to="/login" className="inline-flex items-center min-h-[44px] -my-3 text-primary font-semibold">
           Entrar
         </Link>
       </p>

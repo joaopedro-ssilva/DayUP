@@ -202,7 +202,7 @@ function ViewMode({
             <div className="text-[11px] uppercase tracking-[0.1em] text-muted font-semibold">
               Detalhe do dia
             </div>
-            <h2 id={titleId} className="display text-[22px] leading-none mt-1 capitalize">
+            <h2 id={titleId} className="display text-[22px] leading-none mt-1 first-letter:uppercase">
               {longDate(log.date)}
             </h2>
             <div className="flex items-center gap-2 mt-2">
@@ -389,7 +389,7 @@ function EditMode({
             <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-primary font-semibold">
               <Pencil size={11} /> Editando
             </div>
-            <h2 id={titleId} className="display text-[18px] leading-none mt-0.5 capitalize truncate">
+            <h2 id={titleId} className="display text-[18px] leading-none mt-0.5 first-letter:uppercase truncate">
               {dateLabel}
             </h2>
           </div>

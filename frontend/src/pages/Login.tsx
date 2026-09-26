@@ -58,7 +58,7 @@ export default function Login() {
       </form>
       <p className="text-sm text-text-2 mt-6 text-center">
         Ainda não tem conta?{" "}
-        <Link to="/cadastro" className="text-primary font-semibold">
+        <Link to="/cadastro" className="inline-flex items-center min-h-[44px] -my-3 text-primary font-semibold">
           Criar conta grátis
         </Link>
       </p>

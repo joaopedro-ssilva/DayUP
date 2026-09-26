@@ -79,7 +79,7 @@
 
   /* ───────── Brand mark ───────── */
   .brand {
-    @apply inline-flex items-center gap-2.5 font-display font-bold uppercase tracking-[0.02em];
+    @apply inline-flex items-center min-h-[44px] -my-1.5 gap-2.5 font-display font-bold uppercase tracking-[0.02em];
   }
   .brand-flame {
     width: 28px; height: 28px;

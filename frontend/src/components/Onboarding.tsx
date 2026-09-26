@@ -183,7 +183,7 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={dismiss}
             disabled={mark.isPending}
-            className="text-[12px] text-muted hover:text-text-2"
+            className="inline-flex items-center min-h-[44px] -my-3 text-[12px] text-muted hover:text-text-2"
           >
             Pular tudo
           </button>
