@@ -2,10 +2,9 @@
 
 # ▲ Day UP
 
-**Sua rotina como um histórico de partidas.**
-Metas com peso, check-in diário em poucos toques e um score de 0 a 100 para cada dia, num histórico denso no estilo OP.GG / DeepLoL.
+Acompanhamento de rotina diária com metas ponderadas, score de 0 a 100 por dia e um histórico no formato de "histórico de partidas" (inspirado no OP.GG e no DeepLoL).
 
-[**🔗 dayup.biigstudio.com.br**](https://dayup.biigstudio.com.br) · conta demo: `demo@dayup.app` / `demo1234`
+**[dayup.biigstudio.com.br](https://dayup.biigstudio.com.br)** · conta demo: `demo@dayup.app` / `demo1234`
 
 [![CI](https://github.com/joaopedro-ssilva/DayUP/actions/workflows/ci.yml/badge.svg)](https://github.com/joaopedro-ssilva/DayUP/actions/workflows/ci.yml)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -21,24 +20,24 @@ Metas com peso, check-in diário em poucos toques e um score de 0 a 100 para cad
 
 ## O que é
 
-A maioria dos apps de hábito é uma lista de checkbox que você larga em duas semanas. O Day UP trata cada dia como uma **partida**: você avalia o esforço em cada meta, o app calcula um placar ponderado e o dia entra num histórico que dá vontade de revisitar, como o histórico de partidas de um jogo.
+Apps de hábito costumam funcionar como checklist: fez ou não fez. No Day UP cada dia funciona como uma partida. Você avalia o quanto se esforçou em cada meta, o app calcula um placar ponderado pelo peso delas e o dia vai para um histórico que dá para comparar semana a semana.
 
-1. **Metas recorrentes** por categoria (Saúde, Estudo, Bem-estar, Alimentação, Sono), cada uma com **peso** (1, 2 ou 3) e **dias da semana** em que vale.
-2. **Check-in** na tela *Hoje*: para cada meta do dia, um toque em um de quatro níveis — não feito (0) · fraca (40%) · média (70%) · perfeita (100%). Mood, nota do dia e horário são opcionais.
-3. **Score do dia**, em tempo real:
+1. Metas recorrentes por categoria (Saúde, Estudo, Bem-estar, Alimentação, Sono), cada uma com peso (1, 2 ou 3) e com os dias da semana em que vale.
+2. Check-in na tela Hoje: cada meta do dia recebe um de quatro níveis, que são não feito (0), fraca (40%), média (70%) e perfeita (100%). Mood, nota do dia e horário são opcionais.
+3. Score do dia, calculado em tempo real:
 
    ```
    score = round_half_up( Σ(peso × nível) / Σ(peso das metas do dia) × 100 )
    ```
 
-   Metas ainda não avaliadas contam como zero. O resultado vira um tier: Perfeito (100) · Excelente (85+) · Bom (65+) · Regular (45+) · Difícil.
-4. **Histórico e métricas**: streak (atual e recorde), consistência, score médio e tendência dos últimos 14 dias contra os 14 anteriores.
+   Metas ainda não avaliadas contam como zero. O resultado define o tier do dia: Perfeito (100), Excelente (85+), Bom (65+), Regular (45+) ou Difícil.
+4. Histórico e métricas: streak atual e recorde, consistência, score médio e a média dos últimos 14 dias comparada com os 14 anteriores.
 
 | Estado do dia | Score médio | Consistência | Streak |
 |---|---|---|---|
-| ✅ Registrado | conta | positivo | soma +1 |
-| 🏖️ Day Off | não conta | neutro | mantém |
-| ⚠️ Não registrado | não conta | negativo | quebra |
+| Registrado | conta | positivo | soma +1 |
+| Day Off | não conta | neutro | mantém |
+| Não registrado | não conta | negativo | quebra |
 
 Um dia pode ser registrado até o fim do dia seguinte sem quebrar o streak, e continua editável depois disso.
 
@@ -49,10 +48,10 @@ Um dia pode ser registrado até o fim do dia seguinte sem quebrar o streak, e co
 - Check-in progressivo: salvar ao longo do dia, finalizar e reabrir
 - Histórico paginado com dias não registrados sinalizados
 - Métricas: streak atual/recorde, consistência, score médio e tendência de 14 dias
-- Perfil: alterar nome, e-mail e senha; **exportar meus dados** (JSON) e **excluir conta**
-- Mobile-first: pensado primeiro para o navegador do celular (360–390px) e **instalável na tela inicial** (PWA)
+- Perfil: alterar nome, e-mail e senha, exportar os dados em JSON e excluir a conta
+- Interface feita primeiro para o navegador do celular (360 a 390px) e instalável na tela inicial (PWA)
 
-**Em breve:** recuperação de senha e verificação de e-mail (dependem de um serviço de e-mail) e notificações de lembrete. Veja o [roadmap](#roadmap).
+Em breve: recuperação de senha e verificação de e-mail (dependem de um serviço de e-mail) e notificações de lembrete. Veja o [roadmap](#roadmap).
 
 ## Arquitetura
 
@@ -64,27 +63,27 @@ flowchart LR
     A --> R[(Redis<br/>sessões + rate limit)]
 ```
 
-Tudo roda com `docker compose` numa VM ARM do Oracle Cloud (Always Free). Só o Caddy expõe portas; API, banco e Redis ficam na rede interna. Frontend e API são servidos pela **mesma origem**, então os cookies de sessão funcionam com `SameSite=Lax` e sem CORS em produção.
+Tudo roda com `docker compose` numa VM ARM do Oracle Cloud (Always Free). Só o Caddy expõe portas; API, banco e Redis ficam na rede interna. Frontend e API são servidos pela mesma origem, então os cookies de sessão funcionam com `SameSite=Lax` e não é preciso CORS em produção.
 
 ## Decisões técnicas
 
-- **Sessão no servidor (Redis) em vez de JWT.** O cookie carrega só um ID opaco; logout, troca de senha e exclusão de conta invalidam a sessão de verdade, em todos os dispositivos. O custo é depender do Redis, que também serve para o rate limiting.
-- **Regras de negócio em funções puras.** Score e estatísticas (streak, consistência, tendência) ficam em `backend/app/services/` e são testados sem banco. O score usa aritmética inteira com arredondamento *half up*, idêntica no frontend, para o número mostrado durante a edição ser exatamente o salvo.
-- **Histórico imutável.** Cada avaliação guarda um *snapshot* do peso da meta; mudar o peso depois não reescreve dias passados.
-- **Integridade no banco, não só na API.** Constraints de unicidade (um registro por dia por usuário), checks de faixa (peso 1–3, níveis válidos, score 0–100) e migrações versionadas com Alembic.
-- **Deploy simples de propósito.** Uma VM com Compose + Caddy em vez de vários serviços gerenciados: sem cold start e custo zero, em troca de cuidar de backup e atualização do servidor.
+- **Sessão no servidor (Redis) em vez de JWT.** O cookie guarda só um ID opaco, então logout, troca de senha e exclusão de conta invalidam a sessão em todos os dispositivos. Em troca, a API depende do Redis, que também é usado no rate limiting.
+- **Regras de negócio em funções puras.** Score e estatísticas (streak, consistência, tendência) ficam em `backend/app/services/` e são testados sem banco. O score usa aritmética inteira com arredondamento half up, igual no frontend, para o número mostrado durante a edição ser o mesmo que é salvo.
+- **Histórico que não muda.** Cada avaliação guarda o peso que a meta tinha naquele dia, então alterar o peso depois não mexe nos dias passados.
+- **Integridade no banco, não só na API.** Constraints de unicidade (um registro por dia por usuário), checks de faixa (peso de 1 a 3, níveis válidos, score de 0 a 100) e migrações versionadas com Alembic.
+- **Deploy numa VM só.** Compose + Caddy em vez de vários serviços gerenciados: sem cold start e sem custo, mas backup e atualização do servidor ficam por minha conta.
 
 ## Segurança
 
-- Senhas com **Argon2id** (rehash automático quando os parâmetros mudam)
-- Cookies `HttpOnly` + `Secure` + `SameSite=Lax` e proteção **CSRF** (double-submit) em toda mutação
+- Senhas com Argon2id (rehash automático quando os parâmetros mudam)
+- Cookies `HttpOnly` + `Secure` + `SameSite=Lax` e proteção CSRF (double-submit) em toda mutação
 - Troca de senha revoga as outras sessões; exclusão de conta apaga todos os dados
-- **Rate limiting** por IP, por e-mail (só tentativas com falha) e por usuário em escritas
+- Rate limiting por IP, por e-mail (só tentativas com falha) e por usuário em escritas
 - Autorização por dono em todos os recursos, validação de entrada com Pydantic e limite de tamanho de requisição
 - Cabeçalhos de segurança (CSP, HSTS, `X-Frame-Options`, `nosniff`) e documentação da API desligada em produção
 - Erros de validação nunca devolvem o que foi enviado (senhas não vazam em respostas 422)
 
-Encontrou algo? Veja [SECURITY.md](SECURITY.md).
+Para reportar uma vulnerabilidade, veja o [SECURITY.md](SECURITY.md).
 
 ## Stack
 
@@ -103,7 +102,7 @@ Pré-requisitos: Docker, Python 3.12+ e Node 24.
 # 1. Postgres e Redis de desenvolvimento
 docker compose up -d
 
-# 2. Backend (http://localhost:8000 — docs em /docs)
+# 2. Backend em http://localhost:8000 (docs em /docs)
 cd backend
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt -e ".[dev]"   # versões travadas + ferramentas de dev
@@ -111,7 +110,7 @@ cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
 
-# 3. Frontend (http://localhost:5173 — faz proxy de /api para o backend)
+# 3. Frontend em http://localhost:5173 (faz proxy de /api para o backend)
 cd frontend
 npm ci
 npm run dev
@@ -126,7 +125,7 @@ cd backend && ruff check . && pytest      # precisa do Postgres e Redis do passo
 cd frontend && npm run build              # typecheck + build
 ```
 
-O mesmo roda no CI a cada push. Os testes cobrem o cálculo do score, as regras de streak e consistência, autorização entre usuários e o fluxo real de autenticação (cookies, CSRF, revogação de sessão).
+O CI roda os mesmos comandos a cada push. Os testes cobrem o cálculo do score, as regras de streak e consistência, autorização entre usuários e o fluxo real de autenticação (cookies, CSRF, revogação de sessão).
 
 ## Deploy
 
@@ -168,4 +167,4 @@ docs/             slides da apresentação e imagens
 
 O Day UP nasceu como projeto da disciplina **Projeto de Desenvolvimento I** (SENAC, 2026). Os [slides da apresentação](docs/presentation/) contam a visão original do produto.
 
-O histórico de commits começa curto por dois motivos: durante o semestre o código era versionado em blocos grandes, e parte do histórico se perdeu na migração entre GitHub e o GitLab exigido pela faculdade. Desde a publicação, o desenvolvimento segue com commits pequenos e focados, revisados pelo CI.
+O histórico de commits começa curto por dois motivos: durante o semestre o código era versionado em blocos grandes, e parte do histórico se perdeu na migração entre GitHub e o GitLab exigido pela faculdade. Desde a publicação, os commits são pequenos e cada um passa pelo CI.

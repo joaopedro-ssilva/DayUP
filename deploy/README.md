@@ -124,7 +124,7 @@ docker compose logs -f web       # procure "certificate obtained successfully"
 
 Abra `https://dayup.biigstudio.com.br`. As migrações do banco rodam sozinhas a cada subida da API.
 
-**Conta demo** (bom pra quem chegar pelo LinkedIn testar sem cadastro):
+**Conta demo** (para quem quiser testar sem criar conta):
 
 ```bash
 docker compose exec api python -m scripts.seed_demo
@@ -151,9 +151,9 @@ gunzip -c backups/dayup-AAAA-MM-DD.sql.gz | docker compose exec -T postgres psql
 ## 7b. Reseed diário da conta demo
 
 A conta demo é pública (qualquer visitante loga com `demo@dayup.app` / `demo1234`
-e pode editar/apagar metas e dias à vontade). Pra sempre voltar a um estado
-apresentável, agende o reseed às 4h30 — depois do backup das 3h, então o dump
-diário guarda o estado "sujo" antes de resetar:
+e pode editar/apagar metas e dias à vontade). Para ela voltar a um estado
+apresentável todo dia, agende o reseed às 4h30. Como o backup roda às 3h, o dump
+diário guarda o estado anterior ao reset:
 
 ```bash
 crontab -e
