@@ -12,10 +12,15 @@ import {
 import { formatDate, weekdayShort } from "@/lib/format";
 import { levelByValue } from "@/lib/day";
 import { useDayEditor } from "@/hooks/useDayEditor";
-import { GoalCard, MoodPicker, Ring, RingGradientDef } from "@/components/day/DayParts";
-
-const FOCUSABLE =
-  'a[href],button:not([disabled]),textarea,input:not([tabindex="-1"]),select,[tabindex]:not([tabindex="-1"])';
+import { useModalA11y } from "@/hooks/useModalA11y";
+import {
+  DayEditorError,
+  DayEditorSkeleton,
+  GoalCard,
+  MoodPicker,
+  Ring,
+  RingGradientDef,
+} from "@/components/day/DayParts";
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -54,49 +59,9 @@ export default function DayDetailModal({
     window.setTimeout(onClose, 200);
   }
 
-  // a11y: ESC, foco preso, trava de scroll, animação de entrada.
-  useEffect(() => {
-    setShow(true);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const prevActive = document.activeElement as HTMLElement | null;
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        requestClose();
-      } else if (e.key === "Tab") {
-        const container = panelRef.current;
-        if (!container) return;
-        const nodes = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-          (el) => el.offsetParent !== null,
-        );
-        if (nodes.length === 0) return;
-        const first = nodes[0];
-        const last = nodes[nodes.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    const raf = requestAnimationFrame(() => {
-      const el = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-      (el ?? panelRef.current)?.focus();
-    });
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-      cancelAnimationFrame(raf);
-      prevActive?.focus?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useModalA11y(panelRef, requestClose);
+  // Dispara a animação de entrada (transição de opacidade/translate) no mount.
+  useEffect(() => setShow(true), []);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -172,13 +137,15 @@ export default function DayDetailModal({
 
       {/* Toast */}
       <div
+        role="status"
+        aria-live="polite"
         className={[
           "fixed left-1/2 -translate-x-1/2 bottom-6 z-[60] bg-border-2 border border-border-2 text-text",
           "text-[13px] font-semibold px-4 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300",
           toast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none",
         ].join(" ")}
       >
-        <span className="w-2 h-2 rounded-full bg-good" />
+        <span className="w-2 h-2 rounded-full bg-good" aria-hidden />
         {toast}
       </div>
     </div>
@@ -348,7 +315,7 @@ function ViewMode({
             <div className="text-[12px] uppercase tracking-[0.06em] text-text-2 font-semibold mb-2">
               ✍ Nota do dia
             </div>
-            <p className="bg-bg-2 border border-border rounded-card px-3.5 py-3 text-[14px] leading-relaxed text-text-2 whitespace-pre-wrap">
+            <p className="bg-bg-2 border border-border rounded-card px-3.5 py-3 text-[14px] leading-relaxed text-text-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {log.note}
             </p>
           </div>
@@ -397,7 +364,9 @@ function EditMode({
     label,
     isFinalized,
     busy,
-    dayOffPending,
+    isLoading,
+    isError,
+    retry,
     error,
   } = day;
 
@@ -428,7 +397,7 @@ function EditMode({
             className="inline-flex flex-col items-center justify-center px-2.5 py-1 rounded-lg bg-surface border border-border shrink-0"
             title={label}
           >
-            <span className="display text-[18px] leading-none">{score}</span>
+            <span className="display text-[18px] leading-none">{score ?? 0}</span>
             <span className="text-[8px] uppercase tracking-[0.08em] text-muted">score</span>
           </span>
           <CloseButton onClose={onClose} />
@@ -436,75 +405,94 @@ function EditMode({
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 flex flex-col gap-4">
-        {isFinalized && (
-          <div className="flex items-center gap-2 text-[12px] text-good bg-good/10 border border-good/20 rounded-card px-3 py-2">
-            <Check size={14} /> Dia finalizado — editar e salvar mantém ele atualizado.
-          </div>
-        )}
+        {isLoading && <DayEditorSkeleton />}
+        {isError && <DayEditorError onRetry={retry} />}
 
-        {/* Mood */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-muted font-semibold">
-              Como foi o humor?
-            </span>
-            <span className="text-[12px] text-dim">opcional</span>
-          </div>
-          <MoodPicker value={mood} onChange={setMood} />
-        </div>
+        {!isLoading && !isError && (
+          <>
+            {isFinalized && (
+              <div className="flex items-center gap-2 text-[12px] text-good bg-good/10 border border-good/20 rounded-card px-3 py-2">
+                <Check size={14} /> Dia finalizado — editar e salvar mantém ele atualizado.
+              </div>
+            )}
 
-        {/* Metas */}
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.06em] text-text-2 font-semibold mb-2">
-            Metas do dia
-          </div>
-          {todaysGoals.length === 0 ? (
-            <p className="text-[13px] text-muted bg-surface border border-border rounded-card px-3.5 py-3">
-              Nenhuma meta ativa nesse dia da semana.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {todaysGoals.map((g) => (
-                <GoalCard
-                  key={g.id}
-                  goal={g}
-                  level={levels[g.id]}
-                  time={times[g.id] ?? ""}
-                  onPick={(lv) => pickLevel(g.id, lv)}
-                  onTimeChange={(t) => setTime(g.id, t)}
-                />
-              ))}
+            {/* Mood */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] uppercase tracking-[0.08em] text-muted font-semibold">
+                  Como foi o humor?
+                </span>
+                <span className="text-[12px] text-dim">opcional</span>
+              </div>
+              <MoodPicker value={mood} onChange={setMood} disabled={busy} />
             </div>
-          )}
-        </div>
 
-        {/* Nota */}
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.06em] text-text-2 font-semibold mb-2">
-            ✍ Nota do dia
-          </div>
-          <textarea
-            value={note}
-            maxLength={1000}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Como foi esse dia?"
-            className="w-full min-h-[72px] resize-y bg-bg-2 border border-border rounded-[10px] text-text text-[15px] leading-relaxed p-3 outline-none focus:border-primary placeholder:text-dim"
-          />
-        </div>
+            {/* Metas */}
+            <div>
+              <div className="text-[12px] uppercase tracking-[0.06em] text-text-2 font-semibold mb-2">
+                Metas do dia
+              </div>
+              {todaysGoals.length === 0 ? (
+                <p className="text-[13px] text-muted bg-surface border border-border rounded-card px-3.5 py-3">
+                  Nenhuma meta ativa nesse dia da semana.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {todaysGoals.map((eg) => (
+                    <GoalCard
+                      key={eg.goal.id}
+                      goal={eg.goal}
+                      archived={eg.archived}
+                      disabled={busy}
+                      level={levels[eg.goal.id]}
+                      time={times[eg.goal.id] ?? ""}
+                      onPick={(lv) => pickLevel(eg.goal.id, lv)}
+                      onTimeChange={(t) => setTime(eg.goal.id, t)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
-        {error && <p className="text-sm text-rough">{error.message}</p>}
+            {/* Nota */}
+            <div>
+              <div className="text-[12px] uppercase tracking-[0.06em] text-text-2 font-semibold mb-2">
+                ✍ Nota do dia
+              </div>
+              <textarea
+                value={note}
+                maxLength={1000}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Como foi esse dia?"
+                aria-label="Nota do dia"
+                disabled={busy}
+                className="w-full min-h-[72px] resize-y bg-bg-2 border border-border rounded-[10px] text-text text-[16px] leading-relaxed p-3 outline-none focus:border-primary placeholder:text-dim disabled:opacity-60"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-rough" role="alert">
+                {error.message}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <footer
         className="shrink-0 px-4 sm:px-5 pt-3 border-t border-border flex flex-col gap-2"
         style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
       >
-        <button onClick={onSave} disabled={busy} className="btn-primary btn-lg w-full disabled:opacity-50">
+        <button
+          onClick={onSave}
+          disabled={busy || isLoading || isError}
+          className="btn-primary btn-lg w-full disabled:opacity-50"
+        >
           {busy ? "Salvando…" : "Salvar alterações"}
         </button>
         <button
           onClick={onDayOff}
-          disabled={dayOffPending}
+          disabled={busy || isLoading || isError}
           className="btn-ghost text-[13px] w-full"
         >
           <Coffee size={15} /> Marcar como Day Off

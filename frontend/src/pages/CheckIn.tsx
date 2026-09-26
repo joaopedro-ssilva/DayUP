@@ -3,7 +3,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Check, Coffee } from "lucide-react";
 
 import { formatDate, todayISO } from "@/lib/format";
-import { GoalCard, MoodPicker, Ring, RingGradientDef } from "@/components/day/DayParts";
+import {
+  DayEditorError,
+  DayEditorSkeleton,
+  GoalCard,
+  MoodPicker,
+  Ring,
+  RingGradientDef,
+} from "@/components/day/DayParts";
 import { useDayEditor } from "@/hooks/useDayEditor";
 
 export default function CheckIn() {
@@ -13,7 +20,6 @@ export default function CheckIn() {
 
   const day = useDayEditor(targetDate);
   const {
-    goals,
     todaysGoals,
     levels,
     times,
@@ -32,7 +38,9 @@ export default function CheckIn() {
     isFinalized,
     isDayOff,
     busy,
-    dayOffPending,
+    isLoading,
+    isError,
+    retry,
     error,
   } = day;
 
@@ -65,6 +73,15 @@ export default function CheckIn() {
   }
 
   const finishLabel = isFinalized ? "Atualizar dia" : "Finalizar dia →";
+  const dayOffPending = busy;
+
+  if (isLoading || isError) {
+    return (
+      <div className="px-4 lg:px-7 pt-4 lg:pt-7 pb-10 max-w-[1080px] mx-auto">
+        {isLoading ? <DayEditorSkeleton /> : <DayEditorError onRetry={retry} />}
+      </div>
+    );
+  }
 
   return (
     <div className="relative px-4 lg:px-7 pt-4 lg:pt-7 pb-[200px] lg:pb-10 max-w-[1080px] mx-auto">
@@ -104,7 +121,7 @@ export default function CheckIn() {
               </span>
               <span className="text-[12px] text-dim">opcional</span>
             </div>
-            <MoodPicker value={mood} onChange={setMood} />
+            <MoodPicker value={mood} onChange={setMood} disabled={busy} />
           </section>
 
           {/* Banners de estado */}
@@ -154,9 +171,7 @@ export default function CheckIn() {
             </span>
           </div>
 
-          {goals.isLoading && <p className="text-text-2">Carregando metas…</p>}
-
-          {goals.data && todaysGoals.length === 0 ? (
+          {todaysGoals.length === 0 ? (
             <div className="surface rounded-card p-6 text-center">
               <p className="display text-lg">Nenhuma meta para esse dia da semana.</p>
               <p className="text-text-2 text-sm mt-1">
@@ -168,14 +183,16 @@ export default function CheckIn() {
             </div>
           ) : (
             <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2 lg:items-start">
-              {todaysGoals.map((g) => (
+              {todaysGoals.map((eg) => (
                 <GoalCard
-                  key={g.id}
-                  goal={g}
-                  level={levels[g.id]}
-                  time={times[g.id] ?? ""}
-                  onPick={(lv) => pickLevel(g.id, lv)}
-                  onTimeChange={(t) => setTime(g.id, t)}
+                  key={eg.goal.id}
+                  goal={eg.goal}
+                  archived={eg.archived}
+                  disabled={busy}
+                  level={levels[eg.goal.id]}
+                  time={times[eg.goal.id] ?? ""}
+                  onPick={(lv) => pickLevel(eg.goal.id, lv)}
+                  onTimeChange={(t) => setTime(eg.goal.id, t)}
                 />
               ))}
             </div>
@@ -195,7 +212,9 @@ export default function CheckIn() {
                 maxLength={1000}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Escreva uma linha sobre o seu dia — o que rolou, como se sentiu…"
-                className="w-full min-h-[76px] resize-y bg-bg-2 border border-border rounded-[10px] text-text text-[15px] leading-relaxed p-3 outline-none focus:border-primary placeholder:text-dim"
+                aria-label="Nota do dia"
+                disabled={busy}
+                className="w-full min-h-[76px] resize-y bg-bg-2 border border-border rounded-[10px] text-text text-[16px] leading-relaxed p-3 outline-none focus:border-primary placeholder:text-dim disabled:opacity-60"
               />
             </section>
           )}
@@ -216,16 +235,16 @@ export default function CheckIn() {
         <aside className="hidden lg:flex lg:flex-col lg:gap-3.5 lg:sticky lg:top-7">
           <div className="surface-raised p-5">
             <div className="flex justify-center mb-1">
-              <Ring size={150} stroke={12} pct={score}>
+              <Ring size={150} stroke={12} pct={score ?? 0}>
                 <div className="flex flex-col items-center">
-                  <span className="display text-[52px] leading-[0.9] font-bold">{score}</span>
+                  <span className="display text-[52px] leading-[0.9] font-bold">{score ?? 0}</span>
                   <span className="text-[12px] text-muted mt-0.5">/ 100</span>
                 </div>
               </Ring>
             </div>
             <div
               className="display text-center text-[18px] uppercase tracking-[0.04em] mb-4 mt-2"
-              style={{ color: progress === 0 ? "#8a7a60" : "#f5b528" }}
+              style={{ color: progress === 0 ? "#a89478" : "#f5b528" }}
             >
               {label}
             </div>
@@ -285,8 +304,8 @@ export default function CheckIn() {
         >
           <div className="max-w-[460px] mx-auto bg-gradient-to-b from-surface-2 to-surface border border-border-2 rounded-2xl p-3 flex items-center gap-3 shadow-[0_-8px_40px_-12px_rgba(0,0,0,0.6)]">
             <div className="flex items-center gap-3 shrink-0">
-              <Ring size={54} stroke={6} pct={score}>
-                <span className="display text-[20px] font-bold leading-none">{score}</span>
+              <Ring size={54} stroke={6} pct={score ?? 0}>
+                <span className="display text-[20px] font-bold leading-none">{score ?? 0}</span>
               </Ring>
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase tracking-[0.08em] text-muted font-semibold">
@@ -313,17 +332,23 @@ export default function CheckIn() {
 
       {/* Toast */}
       <div
+        role="status"
+        aria-live="polite"
         className={[
           "fixed left-1/2 -translate-x-1/2 z-40 bg-border-2 border border-border-2 text-text text-[13px] font-semibold px-4 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300",
           toast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none",
         ].join(" ")}
         style={{ bottom: "calc(140px + env(safe-area-inset-bottom))" }}
       >
-        <span className="w-2 h-2 rounded-full bg-good" />
+        <span className="w-2 h-2 rounded-full bg-good" aria-hidden />
         {toast}
       </div>
 
-      {error && <p className="mt-4 text-sm text-rough">{error.message}</p>}
+      {error && (
+        <p className="mt-4 text-sm text-rough" role="alert">
+          {error.message}
+        </p>
+      )}
     </div>
   );
 }

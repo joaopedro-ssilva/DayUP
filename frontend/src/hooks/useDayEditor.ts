@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { type Goal, type GoalLevel } from "@/lib/types";
-import { computeScore, stateLabel, weekdayOf } from "@/lib/day";
+import { type GoalLevel } from "@/lib/types";
+import { computeScore, effectiveGoalsForDate, stateLabel, weekdayOf } from "@/lib/day";
 import { useDayLog, useDayOff, useFinalizeDay, useGoals, useSaveDay } from "@/lib/queries";
 
 /**
@@ -11,52 +11,70 @@ import { useDayLog, useDayOff, useFinalizeDay, useGoals, useSaveDay } from "@/li
  * Não cuida de toast/navegação/fechamento: o consumidor reage aos retornos das ações.
  */
 export function useDayEditor(date: string) {
-  const goals = useGoals();
+  // includeArchived: precisamos das metas arquivadas pra montar E(date) —
+  // uma meta arquivada que já tem entry nesse dia continua aparecendo.
+  const goals = useGoals({ includeArchived: true });
   const existing = useDayLog(date);
   const saveDay = useSaveDay();
   const finalizeDay = useFinalizeDay();
   const dayOff = useDayOff();
 
+  const queriesReady = goals.isSuccess && existing.isSuccess;
+  const queriesError = goals.isError || existing.isError;
+
   const weekday = weekdayOf(date);
-  const todaysGoals = useMemo<Goal[]>(
-    () => (goals.data ?? []).filter((g) => g.days_of_week.includes(weekday)),
-    [goals.data, weekday],
+  const effectiveGoals = useMemo(
+    () => effectiveGoalsForDate(goals.data ?? [], existing.data?.entries ?? [], weekday),
+    [goals.data, existing.data, weekday],
   );
 
   const [levels, setLevels] = useState<Record<string, GoalLevel>>({});
   const [times, setTimes] = useState<Record<string, string>>({});
-  const [mood, setMood] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [isFinalized, setIsFinalized] = useState(false);
+  const [mood, setMoodState] = useState<string | null>(null);
+  const [note, setNoteState] = useState("");
   const [reopened, setReopened] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [hydratedDate, setHydratedDate] = useState<string | null>(null);
 
-  // Hidrata o estado local quando o dia carrega.
+  // Hidrata o rascunho local uma vez por data, a partir do servidor. Nunca
+  // pisa em cima de um rascunho "sujo" quando as queries refazem o fetch (ex:
+  // depois de salvar) — só reidrata de novo quando a data muda.
   useEffect(() => {
-    if (!existing.data) return;
+    if (!queriesReady) return;
+    if (date === hydratedDate && dirty) return;
+
     const nextLevels: Record<string, GoalLevel> = {};
     const nextTimes: Record<string, string> = {};
-    for (const e of existing.data.entries) {
+    for (const e of existing.data?.entries ?? []) {
       nextLevels[e.goal_id] = e.level as GoalLevel;
       if (e.done_at) nextTimes[e.goal_id] = e.done_at.slice(0, 5);
     }
     setLevels(nextLevels);
     setTimes(nextTimes);
-    setMood(existing.data.mood);
-    setNote(existing.data.note ?? "");
-    setIsFinalized(existing.data.finalized);
+    setMoodState(existing.data?.mood ?? null);
+    setNoteState(existing.data?.note ?? "");
     setReopened(false);
-  }, [existing.data]);
+    setDirty(false);
+    setHydratedDate(date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queriesReady, date, existing.data]);
 
-  const evaluatedCount = todaysGoals.filter((g) => levels[g.id] !== undefined).length;
-  const progress = todaysGoals.length
-    ? Math.round((evaluatedCount / todaysGoals.length) * 100)
+  const isFinalized = existing.data?.finalized ?? false;
+  const busy = saveDay.isPending || finalizeDay.isPending || dayOff.isPending;
+
+  const evaluatedCount = effectiveGoals.filter((eg) => levels[eg.goal.id] !== undefined).length;
+  const progress = effectiveGoals.length
+    ? Math.round((evaluatedCount / effectiveGoals.length) * 100)
     : 0;
-  const score = useMemo(() => computeScore(todaysGoals, levels), [todaysGoals, levels]);
-  const label = stateLabel(progress, score);
+  const score = useMemo(
+    () => computeScore(effectiveGoals.map((eg) => ({ weight: eg.weight, level: levels[eg.goal.id] }))),
+    [effectiveGoals, levels],
+  );
+  const label = stateLabel(progress, score ?? 0);
   const perfectCount = Object.values(levels).filter((v) => v === 1).length;
-  const remaining = Math.max(todaysGoals.length - evaluatedCount, 0);
+  const remaining = Math.max(effectiveGoals.length - evaluatedCount, 0);
 
-  // Confirmação leve ao editar um dia já finalizado.
+  // Confirmação leve ao editar um dia já finalizado (só uma vez por sessão de edição).
   function guardEdit(): boolean {
     if (isFinalized && !reopened) {
       const ok = window.confirm("Esse dia já foi finalizado — quer reabrir para editar?");
@@ -67,7 +85,9 @@ export function useDayEditor(date: string) {
   }
 
   function pickLevel(goalId: string, value: GoalLevel) {
+    if (!queriesReady || busy) return;
     if (!guardEdit()) return;
+    setDirty(true);
     setLevels((prev) => {
       const next = { ...prev };
       if (next[goalId] === value) delete next[goalId]; // toque de novo desmarca
@@ -77,7 +97,9 @@ export function useDayEditor(date: string) {
   }
 
   function setTime(goalId: string, value: string) {
+    if (!queriesReady || busy) return;
     if (!guardEdit()) return;
+    setDirty(true);
     setTimes((prev) => {
       const next = { ...prev };
       if (value) next[goalId] = value;
@@ -86,43 +108,71 @@ export function useDayEditor(date: string) {
     });
   }
 
+  function setMood(next: string | null) {
+    if (!queriesReady || busy) return;
+    setDirty(true);
+    setMoodState(next);
+  }
+
+  function setNote(next: string) {
+    if (!queriesReady || busy) return;
+    setDirty(true);
+    setNoteState(next);
+  }
+
   function buildPayload() {
-    const entries = todaysGoals
-      .filter((g) => levels[g.id] !== undefined)
-      .map((g) => ({
-        goal_id: g.id,
-        level: levels[g.id],
-        done_at: times[g.id] ? `${times[g.id]}:00` : null,
+    // Inclui TODA meta avaliada do conjunto efetivo (mesmo arquivada/fora do
+    // dia da semana atual) — nunca só as do dia da semana, senão o PUT
+    // apagaria entries históricas ausentes do payload.
+    const entries = effectiveGoals
+      .filter((eg) => levels[eg.goal.id] !== undefined)
+      .map((eg) => ({
+        goal_id: eg.goal.id,
+        level: levels[eg.goal.id],
+        done_at: times[eg.goal.id] ? `${times[eg.goal.id]}:00` : null,
       }));
     return { date, mood, note: note.trim() || null, entries };
   }
 
   async function save() {
+    if (!queriesReady || busy) return undefined;
     const result = await saveDay.mutateAsync(buildPayload());
     setReopened(false);
+    setDirty(false);
     return result;
   }
 
   async function finalize() {
+    if (!queriesReady || busy) return undefined;
     await saveDay.mutateAsync(buildPayload());
     const result = await finalizeDay.mutateAsync(date);
-    setIsFinalized(result.finalized);
     setReopened(false);
+    setDirty(false);
     return result;
   }
 
   async function markDayOff() {
-    return dayOff.mutateAsync(date);
+    if (!queriesReady || busy) return undefined;
+    const result = await dayOff.mutateAsync(date);
+    setReopened(false);
+    setDirty(false);
+    return result;
+  }
+
+  function retry() {
+    goals.refetch();
+    existing.refetch();
   }
 
   return {
     date,
-    // queries
-    goals,
-    existing,
+    // estado das queries
     isLoading: goals.isLoading || existing.isLoading,
+    isError: queriesError,
+    ready: queriesReady,
+    retry,
     // dados
-    todaysGoals,
+    todaysGoals: effectiveGoals,
     levels,
     times,
     mood,
@@ -145,8 +195,7 @@ export function useDayEditor(date: string) {
     save,
     finalize,
     markDayOff,
-    busy: saveDay.isPending || finalizeDay.isPending,
-    dayOffPending: dayOff.isPending,
-    error: (saveDay.error || finalizeDay.error) as Error | null,
+    busy,
+    error: (saveDay.error || finalizeDay.error || dayOff.error) as Error | null,
   };
 }

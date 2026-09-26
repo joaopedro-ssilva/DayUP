@@ -1,5 +1,5 @@
 // Helpers puros compartilhados pela tela "Hoje" e pelo modal de detalhe do dia.
-import { LEVEL_OPTIONS, type Goal, type GoalLevel } from "@/lib/types";
+import { LEVEL_OPTIONS, type Goal, type GoalEntry, type GoalLevel } from "@/lib/types";
 
 export function jsWeekdayToBackend(jsDay: number): number {
   // JS: 0=domingo. Backend: 0=segunda...6=domingo.
@@ -21,13 +21,92 @@ export function stateLabel(progress: number, score: number): string {
   return "Difícil";
 }
 
-// Espelha a fórmula do backend: Σ(peso×nível) / Σpeso × 100, arredondado.
-export function computeScore(goals: Goal[], levels: Record<string, GoalLevel>): number {
-  const totalWeight = goals.reduce((sum, g) => sum + g.weight, 0);
-  if (totalWeight === 0) return 0;
-  const earned = goals.reduce((sum, g) => {
-    const lv = levels[g.id];
-    return sum + (lv !== undefined ? g.weight * lv : 0);
-  }, 0);
-  return Math.round((earned / totalWeight) * 100);
+// Nível (0 | 0.4 | 0.7 | 1) convertido pro décimo inteiro exato (0,4,7,10) —
+// evita somar floats (0.4 + 0.7...) que geram erro de arredondamento binário.
+const LEVEL_TENTHS: Record<number, number> = { 0: 0, 0.4: 4, 0.7: 7, 1: 10 };
+export function levelToTenths(level: GoalLevel): number {
+  return LEVEL_TENTHS[level] ?? 0;
+}
+
+// Arredondamento "half up" de numerator/denominator usando só aritmética inteira.
+function roundHalfUpRatio(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  const quotient = Math.floor(numerator / denominator);
+  const remainder = numerator - quotient * denominator;
+  return remainder * 2 >= denominator ? quotient + 1 : quotient;
+}
+
+export type ScoreItem = {
+  weight: number;
+  level: GoalLevel | undefined;
+};
+
+// Espelha a fórmula do backend: Σ(peso×nível) / Σpeso × 100, arredondado half-up,
+// com nível em décimos inteiros. null quando o denominador é 0 (sem metas).
+export function computeScore(items: ScoreItem[]): number | null {
+  const denominator = items.reduce((sum, it) => sum + it.weight, 0);
+  if (denominator === 0) return null;
+  const numeratorTenths = items.reduce(
+    (sum, it) => sum + (it.level !== undefined ? it.weight * levelToTenths(it.level) : 0),
+    0,
+  );
+  return roundHalfUpRatio(numeratorTenths * 10, denominator);
+}
+
+export type EffectiveGoal = {
+  goal: Goal;
+  archived: boolean;
+  /** Peso usado no cálculo: snapshot da entry existente, ou peso atual da meta. */
+  weight: number;
+  hasEntry: boolean;
+};
+
+/**
+ * Conjunto efetivo de metas de uma data — E(date) do contrato: metas não
+ * arquivadas agendadas nesse dia da semana, UNIÃO metas que já têm uma entry
+ * salva nesse dia (mesmo arquivadas ou reagendadas depois). Precisa que
+ * `allGoals` tenha sido carregado com metas arquivadas incluídas.
+ */
+export function effectiveGoalsForDate(
+  allGoals: Goal[],
+  entries: GoalEntry[],
+  weekday: number,
+): EffectiveGoal[] {
+  const entryByGoal = new Map(entries.map((e) => [e.goal_id, e]));
+  const result: EffectiveGoal[] = [];
+  const seen = new Set<string>();
+
+  for (const g of allGoals) {
+    const scheduledToday = !g.archived_at && g.days_of_week.includes(weekday);
+    const entry = entryByGoal.get(g.id);
+    if (scheduledToday || entry) {
+      result.push({
+        goal: g,
+        archived: !!g.archived_at,
+        weight: entry ? entry.weight : g.weight,
+        hasEntry: !!entry,
+      });
+      seen.add(g.id);
+    }
+  }
+
+  // Defesa extra: entries cuja meta não veio na lista (não deveria acontecer
+  // já que carregamos com includeArchived, mas não perdemos histórico por isso).
+  for (const e of entries) {
+    if (seen.has(e.goal_id)) continue;
+    result.push({
+      goal: {
+        id: e.goal_id,
+        name: "Meta arquivada",
+        category: "health",
+        weight: (e.weight as 1 | 2 | 3) ?? 1,
+        days_of_week: [],
+        archived_at: new Date().toISOString(),
+      },
+      archived: true,
+      weight: e.weight,
+      hasEntry: true,
+    });
+  }
+  return result;
 }

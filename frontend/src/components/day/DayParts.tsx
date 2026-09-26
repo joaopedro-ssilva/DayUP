@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { Check, Clock, X } from "lucide-react";
+import { Check, Clock, RotateCw, X } from "lucide-react";
 
 import {
   CATEGORY_META,
@@ -10,6 +10,31 @@ import {
   type GoalLevel,
 } from "@/lib/types";
 import { levelByValue } from "@/lib/day";
+
+// ── Estados de carregamento/erro do editor de dia (Check-in e modal) ────
+// Compartilhados: não se pode editar/salvar até metas + dia carregarem.
+export function DayEditorSkeleton() {
+  return (
+    <div className="flex flex-col gap-2.5" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="surface rounded-card h-24 animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+export function DayEditorError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="surface rounded-card p-6 text-center flex flex-col items-center gap-3">
+      <p className="text-text-2 text-sm" role="alert">
+        Não foi possível carregar os dados desse dia.
+      </p>
+      <button type="button" onClick={onRetry} className="btn">
+        <RotateCw size={15} /> Tentar novamente
+      </button>
+    </div>
+  );
+}
 
 // Definição do gradiente usada por todos os Rings — incluir uma vez por tela/modal.
 export function RingGradientDef() {
@@ -69,8 +94,8 @@ export function WeightPill({ weight }: { weight: 1 | 2 | 3 }) {
     <span
       className="inline-flex items-center gap-1.5 rounded text-[10px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5"
       style={{
-        background: weight === 1 ? "rgba(138,122,96,0.2)" : "rgba(245,181,40,0.14)",
-        color: weight === 1 ? "#8a7a60" : "#f5b528",
+        background: weight === 1 ? "rgba(168,148,120,0.2)" : "rgba(245,181,40,0.14)",
+        color: weight === 1 ? "#a89478" : "#f5b528",
       }}
     >
       <span className="inline-flex gap-[2px]">
@@ -91,9 +116,11 @@ export function WeightPill({ weight }: { weight: 1 | 2 | 3 }) {
 export function MoodPicker({
   value,
   onChange,
+  disabled,
 }: {
   value: string | null;
   onChange: (mood: string | null) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="grid grid-cols-5 gap-2">
@@ -105,8 +132,9 @@ export function MoodPicker({
             type="button"
             aria-label={`Humor ${m}`}
             aria-pressed={sel}
+            disabled={disabled}
             onClick={() => onChange(sel ? null : m)}
-            className="aspect-square min-h-[52px] rounded-xl grid place-items-center text-[26px] transition-transform active:scale-90"
+            className="aspect-square min-h-[52px] rounded-xl grid place-items-center text-[26px] transition-transform active:scale-90 disabled:opacity-60 disabled:cursor-not-allowed"
             style={
               sel
                 ? {
@@ -134,9 +162,11 @@ export function MoodPicker({
 export function EffortSelector({
   value,
   onPick,
+  disabled,
 }: {
   value: GoalLevel | undefined;
   onPick: (level: GoalLevel) => void;
+  disabled?: boolean;
 }) {
   return (
     <div role="radiogroup" aria-label="Nível de esforço" className="grid grid-cols-4 gap-1.5">
@@ -148,8 +178,9 @@ export function EffortSelector({
             type="button"
             role="radio"
             aria-checked={active}
+            disabled={disabled}
             onClick={() => onPick(opt.value)}
-            className="min-h-[52px] rounded-[10px] flex flex-col items-center justify-center gap-0.5 px-0.5 py-1.5 transition-transform active:scale-95"
+            className="min-h-[52px] rounded-[10px] flex flex-col items-center justify-center gap-0.5 px-0.5 py-1.5 transition-transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             style={
               active
                 ? {
@@ -168,7 +199,7 @@ export function EffortSelector({
             </span>
             <span
               className="text-[9px] font-semibold uppercase tracking-[0.04em] text-center leading-tight"
-              style={{ color: active ? opt.color : "#8a7a60" }}
+              style={{ color: active ? opt.color : "#a89478" }}
             >
               {opt.label}
             </span>
@@ -184,12 +215,18 @@ export function GoalCard({
   goal,
   level,
   time,
+  archived,
+  disabled,
   onPick,
   onTimeChange,
 }: {
   goal: Goal;
   level: GoalLevel | undefined;
   time: string;
+  /** Meta arquivada (ou fora do dia da semana atual) que já tem entry salva nesse dia. */
+  archived?: boolean;
+  /** Trava a edição enquanto salva/finaliza/day-off está pendente (serializa escritas). */
+  disabled?: boolean;
   onPick: (level: GoalLevel) => void;
   onTimeChange: (time: string) => void;
 }) {
@@ -228,15 +265,20 @@ export function GoalCard({
           {cat.emoji}
         </span>
         <div className="flex-1 min-w-0">
-          <div className="text-[16px] font-semibold leading-tight">{goal.name}</div>
-          <div className="flex items-center gap-2 mt-1 text-[12px] text-muted">
+          <div className="text-[16px] font-semibold leading-tight break-words">{goal.name}</div>
+          <div className="flex items-center gap-2 mt-1 text-[12px] text-muted flex-wrap">
             <WeightPill weight={goal.weight} />
             <span>{cat.label}</span>
+            {archived && (
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded bg-surface-3 text-muted">
+                arquivada
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <EffortSelector value={level} onPick={onPick} />
+      <EffortSelector value={level} onPick={onPick} disabled={disabled} />
 
       <div className="flex items-center gap-2 mt-2.5">
         {/* input nativo escondido — aberto pelo botão via showPicker() */}
@@ -247,38 +289,47 @@ export function GoalCard({
           onChange={(e) => onTimeChange(e.target.value)}
           aria-label={`Horário de ${goal.name}`}
           tabIndex={-1}
-          className="sr-only"
+          disabled={disabled}
+          className="sr-only text-base"
         />
         {time ? (
           <span
-            className="inline-flex items-center gap-1 rounded-full pl-2.5 pr-1.5 py-1.5 text-[12px] min-h-[34px] border border-solid text-text-2"
+            className="inline-flex items-center rounded-full pl-1 pr-1 min-h-[44px] border border-solid text-text-2"
             style={{ borderColor: "rgba(245,181,40,0.4)", background: "rgba(245,181,40,0.07)" }}
           >
-            <button type="button" onClick={openPicker} className="inline-flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={openPicker}
+              disabled={disabled}
+              aria-label={`Editar horário de ${goal.name}, definido às ${time}`}
+              className="inline-flex items-center gap-1.5 min-h-[40px] px-2.5 disabled:opacity-60"
+            >
               <Clock size={13} className="text-primary" />
-              <span className="font-mono font-semibold text-primary">{time}</span>
+              <span className="font-mono font-semibold text-primary text-[13px]">{time}</span>
             </button>
             <button
               type="button"
               onClick={() => onTimeChange("")}
+              disabled={disabled}
               aria-label="Remover horário"
-              className="grid place-items-center w-4 h-4 rounded-full text-muted hover:text-text transition-colors"
+              className="grid place-items-center min-w-[36px] min-h-[40px] rounded-full text-muted hover:text-text transition-colors disabled:opacity-60"
             >
-              <X size={12} />
+              <X size={13} />
             </button>
           </span>
         ) : (
           <button
             type="button"
             onClick={openPicker}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] min-h-[34px] border border-dashed border-border-2 text-muted hover:text-text-2 hover:border-muted transition-colors"
+            disabled={disabled}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 min-h-[44px] border border-dashed border-border-2 text-muted hover:text-text-2 hover:border-muted transition-colors disabled:opacity-60"
           >
             <Clock size={13} /> Definir horário
           </button>
         )}
         <span
           className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: done ? toneColor! : "#5a4d39" }}
+          style={{ color: done ? toneColor! : "#9c8a6e" }}
         >
           {done ? (
             <>
