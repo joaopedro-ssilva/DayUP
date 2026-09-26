@@ -1,37 +1,32 @@
 import { Link } from "react-router-dom";
-import {
-  CalendarDays,
-  ChevronRight,
-  Flame,
-  Star,
-  Trash2,
-  TrendingUp,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, ChevronRight, Flame, Star, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import DayRow from "@/components/DayRow";
+import DayRow, { MissedRow, PendingRow } from "@/components/DayRow";
 import DayDetailModal from "@/components/DayDetailModal";
 import Onboarding from "@/components/Onboarding";
 import RemindBanner from "@/components/RemindBanner";
 import Sparkline from "@/components/Sparkline";
-import { formatDate, formatScore, todayISO, variation, weekdayShort } from "@/lib/format";
 import {
-  useDayLogs,
-  useDeleteDayLog,
-  useGoals,
-  useMe,
-  useStats,
-} from "@/lib/queries";
-import type { DayLog, Goal } from "@/lib/types";
+  dateRangeDesc,
+  formatDate,
+  formatScore,
+  isoDaysAgo,
+  todayISO,
+  toLocalDateString,
+  variation,
+  weekdayShort,
+} from "@/lib/format";
+import { useDayLogs, useGoals, useMe, useStats } from "@/lib/queries";
+import type { DayLog, Goal, Stats } from "@/lib/types";
 
-const REMINDER_KEY = (date: string) => `dayup:reminder-dismissed:${date}`;
+const REMINDER_KEY = (userId: string, date: string) => `dayup:reminder-dismissed:${userId}:${date}`;
 
 export default function Home() {
   const me = useMe();
   const stats = useStats();
   const logs = useDayLogs(14);
   const goals = useGoals({ includeArchived: true });
-  const deleteDay = useDeleteDayLog();
 
   const [selected, setSelected] = useState<DayLog | null>(null);
 
@@ -42,9 +37,26 @@ export default function Home() {
   }, [goals.data]);
 
   const today = todayISO();
-  const todayLog = logs.data?.find((l) => l.date === today);
-  const otherLogs = (logs.data ?? []).filter((l) => l.date !== today);
+  const yesterday = isoDaysAgo(1);
   const handle = me.data?.name ?? "";
+
+  // Todas as páginas carregadas até agora, e a data mais antiga que já vimos —
+  // o histórico só sintetiza dias "sem registro" dentro dessa janela conhecida.
+  const allLogs = useMemo(() => (logs.data?.pages ?? []).flat(), [logs.data]);
+  const storedByDate = useMemo(() => {
+    const m = new Map<string, DayLog>();
+    allLogs.forEach((l) => m.set(l.date, l));
+    return m;
+  }, [allLogs]);
+  const oldestLoadedDate = allLogs.length > 0 ? allLogs[allLogs.length - 1].date : undefined;
+  const createdLocalDate = me.data ? toLocalDateString(new Date(me.data.created_at)) : undefined;
+  // Se ainda há mais páginas pra carregar, só sabemos com certeza que não há
+  // lacunas até a data mais antiga já buscada. Se acabou o histórico, dá pra
+  // sintetizar até a data de criação da conta.
+  const oldestBoundary = logs.hasNextPage ? oldestLoadedDate : (createdLocalDate ?? oldestLoadedDate);
+  const allDates = oldestBoundary ? dateRangeDesc(oldestBoundary, today) : [];
+
+  const todayLog = storedByDate.get(today);
 
   // Onboarding: aparece enquanto a conta não tiver dispensado (onboarding_seen).
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -53,19 +65,25 @@ export default function Home() {
     setShowOnboarding(!me.data.onboarding_seen);
   }, [me.data]);
 
-  // Banner de lembrete: após 18h, dia não registrado/não day-off, não dispensado hoje.
-  const todayUnclosed = !todayLog || todayLog.status === "missed";
-  const [bannerDismissed, setBannerDismissed] = useState(
-    () => typeof window !== "undefined" && localStorage.getItem(REMINDER_KEY(today)) === "1",
-  );
-  const showReminder = new Date().getHours() >= 18 && todayUnclosed && !bannerDismissed;
+  // Banner de lembrete: após 18h, dia não fechado (nem finalizado nem day off),
+  // não dispensado hoje por este usuário.
+  const todayClosed = !!todayLog && (todayLog.finalized || todayLog.status === "day_off");
+  const userId = me.data?.id;
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (!userId) return;
+    setBannerDismissed(localStorage.getItem(REMINDER_KEY(userId, today)) === "1");
+  }, [userId, today]);
 
   function dismissReminder() {
-    localStorage.setItem(REMINDER_KEY(today), "1");
+    if (!userId) return;
+    localStorage.setItem(REMINDER_KEY(userId, today), "1");
     setBannerDismissed(true);
   }
 
-  const sparkSeries = (logs.data ?? [])
+  const showReminder = !!userId && new Date().getHours() >= 18 && !todayClosed && !bannerDismissed;
+
+  const sparkSeries = allLogs
     .filter((l) => l.score !== null)
     .map((l) => l.score as number)
     .reverse()
@@ -87,45 +105,52 @@ export default function Home() {
       {showReminder && <RemindBanner onDismiss={dismissReminder} />}
 
       {/* KPIs */}
-      <Kpis sparkSeries={sparkSeries} />
+      <Kpis stats={stats.data} sparkSeries={sparkSeries} />
 
       {/* Section heading */}
       <div className="flex items-baseline justify-between px-1 pt-6 pb-2">
         <h2 className="display text-[22px] leading-none">Histórico</h2>
-        <span className="text-xs text-muted">
-          Últimos {logs.data?.length ?? 14} dias
-        </span>
+        <span className="text-xs text-muted">{allLogs.length} registrados</span>
       </div>
 
-      {/* Day list — today always on top */}
+      {/* Day list — hoje sempre no topo, depois um card por dia até o limite carregado */}
       <div className="flex flex-col gap-2">
         {logs.isLoading && <SkeletonRows />}
 
-        {/* Today: prompt if not registered, otherwise top row with HOJE chip */}
-        {todayLog ? (
-          <DayRowWithDelete
-            log={todayLog}
-            goalsById={goalsById}
-            isToday
-            href="/app/check-in"
-            onDelete={() => deleteDay.mutate(todayLog.date)}
-          />
-        ) : (
-          <TodayPrompt />
-        )}
+        {!logs.isLoading && allDates.length === 0 && <Empty />}
 
-        {logs.data && logs.data.length === 0 && <Empty />}
+        {allDates.map((date) => {
+          const stored = storedByDate.get(date);
+          const isToday = date === today;
 
-        {otherLogs.map((log) => (
-          <DayRowWithDelete
-            key={log.id}
-            log={log}
-            goalsById={goalsById}
-            onSelect={() => setSelected(log)}
-            onDelete={() => deleteDay.mutate(log.date)}
-          />
-        ))}
+          if (stored) {
+            return (
+              <DayRow
+                key={date}
+                log={stored}
+                goalsById={goalsById}
+                isToday={isToday}
+                href={isToday ? "/app/check-in" : undefined}
+                onSelect={isToday ? undefined : () => setSelected(stored)}
+              />
+            );
+          }
+          if (isToday) return <TodayPrompt key={date} />;
+          if (date === yesterday) return <PendingRow key={date} date={date} />;
+          return <MissedRow key={date} date={date} />;
+        })}
       </div>
+
+      {logs.hasNextPage && (
+        <button
+          type="button"
+          onClick={() => logs.fetchNextPage()}
+          disabled={logs.isFetchingNextPage}
+          className="btn w-full mt-3"
+        >
+          {logs.isFetchingNextPage ? "Carregando…" : "Carregar dias anteriores"}
+        </button>
+      )}
 
       {selected && (
         <DayDetailModal
@@ -138,111 +163,70 @@ export default function Home() {
       {showOnboarding && <Onboarding onClose={() => setShowOnboarding(false)} />}
     </div>
   );
-
-  function Kpis({ sparkSeries }: { sparkSeries: number[] }) {
-    const s = stats.data;
-    const streak = s?.streak ?? { current: 0, record: 0 };
-    const v = variation(s?.score_last_14 ?? 0, s?.score_prev_14 ?? 0);
-    const isRecordBeaten = streak.current > 0 && streak.current > streak.record;
-    const isRecordTied = streak.current > 0 && streak.current === streak.record;
-
-    return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi
-          featured
-          label="Streak"
-          glyph={<Flame size={14} />}
-          value={
-            <>
-              {streak.current}
-              <span className="display-unit">dias</span>
-            </>
-          }
-          sub={
-            isRecordBeaten ? (
-              <span className="text-primary font-semibold">Novo recorde</span>
-            ) : isRecordTied ? (
-              <span className="text-primary font-semibold">Empate de recorde</span>
-            ) : (
-              <span>Recorde {streak.record}d</span>
-            )
-          }
-          spark={sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} /> : null}
-        />
-        <Kpi
-          label="Consistência"
-          glyph={<CalendarDays size={14} />}
-          value={
-            <>
-              {(s?.consistency ?? 0).toFixed(0)}
-              <span className="display-unit">%</span>
-            </>
-          }
-          sub={<span>Desde o início</span>}
-          spark={
-            sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} color="#8ad36b" /> : null
-          }
-        />
-        <Kpi
-          label="Score médio"
-          glyph={<Star size={14} />}
-          value={<>{formatScore(s?.average_score ?? 0)}</>}
-          sub={<span>Geral</span>}
-          spark={
-            sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} color="#6aa7e8" /> : null
-          }
-        />
-        <Kpi
-          label="Score 14d"
-          glyph={<TrendingUp size={14} />}
-          value={<>{formatScore(s?.score_last_14 ?? 0)}</>}
-          sub={
-            v.symbol === "·" ? (
-              <span>—</span>
-            ) : (
-              <span className={v.delta > 0 ? "text-good" : "text-rough"}>
-                {v.symbol} {Math.abs(v.delta).toFixed(1)} vs anterior
-              </span>
-            )
-          }
-          spark={
-            sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} color="#f0a868" /> : null
-          }
-        />
-      </div>
-    );
-  }
 }
 
-function DayRowWithDelete({
-  log,
-  goalsById,
-  isToday,
-  onSelect,
-  href,
-  onDelete,
-}: {
-  log: DayLog;
-  goalsById: Map<string, Goal>;
-  isToday?: boolean;
-  onSelect?: () => void;
-  href?: string;
-  onDelete: () => void;
-}) {
+function Kpis({ stats, sparkSeries }: { stats: Stats | undefined; sparkSeries: number[] }) {
+  const streak = stats?.streak ?? { current: 0, record: 0 };
+  const v = variation(stats?.score_last_14 ?? 0, stats?.score_prev_14 ?? 0);
+  const hasPrevWindow = (stats?.scored_days_prev_14 ?? 0) > 0;
+  const isRecordBeaten = streak.current > 0 && streak.current > streak.record;
+  const isRecordTied = streak.current > 0 && streak.current === streak.record;
+
   return (
-    <div className="relative group">
-      <DayRow log={log} goalsById={goalsById} isToday={isToday} onSelect={onSelect} href={href} />
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          if (confirm("Excluir este registro? Útil só pra testar.")) onDelete();
-        }}
-        aria-label="Excluir dia (teste)"
-        className="absolute top-1/2 -translate-y-1/2 -right-2 lg:-right-12 w-9 h-9 grid place-items-center rounded-lg bg-bg-2 border border-border text-muted hover:text-rough hover:border-rough/40 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
-      >
-        <Trash2 size={14} />
-      </button>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <Kpi
+        featured
+        label="Streak"
+        glyph={<Flame size={14} />}
+        value={
+          <>
+            {streak.current}
+            <span className="display-unit">dias</span>
+          </>
+        }
+        sub={
+          isRecordBeaten ? (
+            <span className="text-primary font-semibold">Novo recorde</span>
+          ) : isRecordTied ? (
+            <span className="text-primary font-semibold">Empate de recorde</span>
+          ) : (
+            <span>Recorde {streak.record}d</span>
+          )
+        }
+      />
+      <Kpi
+        label="Consistência"
+        glyph={<CalendarDays size={14} />}
+        value={
+          <>
+            {(stats?.consistency ?? 0).toFixed(0)}
+            <span className="display-unit">%</span>
+          </>
+        }
+        sub={<span>Desde o início</span>}
+      />
+      <Kpi
+        label="Score médio"
+        glyph={<Star size={14} />}
+        value={<>{formatScore(stats?.average_score ?? 0)}</>}
+        sub={<span>Geral</span>}
+        spark={sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} color="#6aa7e8" /> : null}
+      />
+      <Kpi
+        label="Score 14d"
+        glyph={<TrendingUp size={14} />}
+        value={<>{formatScore(stats?.score_last_14 ?? 0)}</>}
+        sub={
+          !hasPrevWindow ? (
+            <span>—</span>
+          ) : (
+            <span className={v.delta > 0 ? "text-good" : v.delta < 0 ? "text-rough" : "text-muted"}>
+              {v.symbol} {Math.abs(v.delta).toFixed(1)} vs anterior
+            </span>
+          )
+        }
+        spark={sparkSeries.length >= 2 ? <Sparkline data={sparkSeries} color="#f0a868" /> : null}
+      />
     </div>
   );
 }
@@ -269,8 +253,7 @@ function TodayPrompt() {
           <span className="chip-today">HOJE</span>
         </div>
         <div className="text-xs text-text-2">
-          {formatDate(today)}{" "}
-          <span className="text-muted">· {weekdayShort(today)}</span>
+          {formatDate(today)} <span className="text-muted">· {weekdayShort(today)}</span>
         </div>
         <div className="text-[11px] text-muted">
           Marque o nível de cada meta — leva menos de 30s.
@@ -294,10 +277,10 @@ function TodayPrompt() {
 type KpiProps = {
   featured?: boolean;
   label: string;
-  glyph: React.ReactNode;
-  value: React.ReactNode;
-  sub: React.ReactNode;
-  spark?: React.ReactNode;
+  glyph: ReactNode;
+  value: ReactNode;
+  sub: ReactNode;
+  spark?: ReactNode;
 };
 
 function Kpi({ featured, label, glyph, value, sub, spark }: KpiProps) {

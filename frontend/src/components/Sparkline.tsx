@@ -21,7 +21,13 @@ export default function Sparkline({ data, color = "#f5b528", area = true, height
   const areaPath = `${path} L${w},${h} L0,${h} Z`;
   const id = `spark-${color.replace("#", "")}`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" width="100%" height="100%">
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      width="100%"
+      height="100%"
+      aria-hidden="true"
+    >
       {area && (
         <defs>
           <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">

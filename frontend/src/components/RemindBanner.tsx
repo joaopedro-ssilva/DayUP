@@ -40,7 +40,7 @@ export default function RemindBanner({ onDismiss }: Props) {
         type="button"
         onClick={onDismiss}
         aria-label="Dispensar lembrete"
-        className="w-8 h-8 grid place-items-center rounded-md text-muted hover:text-text hover:bg-surface-2 transition-colors shrink-0"
+        className="w-11 h-11 grid place-items-center rounded-md text-muted hover:text-text hover:bg-surface-2 transition-colors shrink-0"
       >
         <X size={14} />
       </button>

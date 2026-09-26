@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Coffee, CircleAlert } from "lucide-react";
+import { Clock, Coffee, CircleAlert } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { formatDate, formatScore, weekdayShort } from "@/lib/format";
@@ -174,7 +174,31 @@ export default function DayRow({ log, goalsById, isToday, onSelect, href }: Prop
   );
 }
 
-function DayOffRow({
+// Card sintético pra um dia sem registro no banco ainda dentro da janela de
+// tolerância (hoje/ontem) — neutro, sem alerta. Sempre abre no editor.
+export function PendingRow({ date }: { date: string }) {
+  return (
+    <RowShell
+      href={`/app/check-in/${date}`}
+      className="grid grid-cols-[6px_1fr_auto] bg-surface border border-border rounded-card overflow-hidden opacity-90 hover:opacity-100 hover:border-border-2 transition-all"
+    >
+      <span className="bg-dim" />
+      <div className="p-3.5 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <div className="display text-base uppercase leading-none text-muted">Pendente</div>
+        </div>
+        <div className="text-xs text-text-2">
+          {formatDate(date)} <span className="text-muted">· {weekdayShort(date)}</span>
+        </div>
+      </div>
+      <div className="grid place-items-center px-5 text-muted">
+        <Clock size={20} />
+      </div>
+    </RowShell>
+  );
+}
+
+export function DayOffRow({
   date,
   isToday,
   onSelect,
@@ -210,7 +234,7 @@ function DayOffRow({
   );
 }
 
-function MissedRow({
+export function MissedRow({
   date,
   isToday,
   onSelect,
