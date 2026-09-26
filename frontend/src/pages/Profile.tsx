@@ -1,14 +1,17 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { Download, LogOut, TriangleAlert } from "lucide-react";
 
 import {
   useChangeEmail,
   useChangePassword,
+  useDeleteAccount,
+  useExportMyData,
   useLogout,
   useMe,
   useUpdateName,
 } from "@/lib/queries";
+import { todayISO } from "@/lib/format";
 
 const PASSWORD_RE = /^(?=.*[A-Za-z])(?=.*\d).{8,128}$/;
 
@@ -24,8 +27,12 @@ export default function Profile() {
   }
 
   async function handleLogout() {
-    await logout.mutateAsync();
-    navigate("/", { replace: true });
+    try {
+      await logout.mutateAsync();
+      navigate("/", { replace: true });
+    } catch {
+      // erro já exposto via logout.error
+    }
   }
 
   return (
@@ -42,19 +49,33 @@ export default function Profile() {
           onSaved={() => showToast("E-mail atualizado ✓")}
         />
         <PasswordSection onSaved={() => showToast("Senha atualizada ✓")} />
+        <ExportSection />
       </div>
 
-      <button onClick={handleLogout} className="btn mt-6 w-full text-rough hover:!border-rough/40">
-        <LogOut size={16} /> Sair
+      <button
+        onClick={handleLogout}
+        disabled={logout.isPending}
+        className="btn mt-6 w-full text-rough hover:!border-rough/40 disabled:opacity-50"
+      >
+        <LogOut size={16} /> {logout.isPending ? "Saindo…" : "Sair"}
       </button>
+      {logout.isError && (
+        <p className="text-sm text-rough mt-2" role="alert">
+          {(logout.error as Error).message}
+        </p>
+      )}
+
+      <DeleteAccountSection />
 
       <div
+        role="status"
+        aria-live="polite"
         className={[
           "fixed left-1/2 -translate-x-1/2 bottom-24 lg:bottom-8 z-40 bg-border-2 border border-border-2 text-text text-[13px] font-semibold px-4 py-2.5 rounded-full flex items-center gap-2 transition-all duration-300",
           toast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none",
         ].join(" ")}
       >
-        <span className="w-2 h-2 rounded-full bg-good" />
+        <span className="w-2 h-2 rounded-full bg-good" aria-hidden />
         {toast}
       </div>
     </div>
@@ -107,10 +128,14 @@ function SectionCard({
 }) {
   return (
     <div className="surface-raised rounded-card p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="label !mb-0">{label}</div>
         {!editing && (
-          <button onClick={onEdit} className="text-[12px] text-primary font-semibold">
+          <button
+            onClick={onEdit}
+            aria-label={`Editar ${label}`}
+            className="text-[12px] text-primary font-semibold min-h-[44px] px-3 -my-3 -mr-3 inline-flex items-center shrink-0"
+          >
             Editar
           </button>
         )}
@@ -118,7 +143,7 @@ function SectionCard({
       {editing ? (
         <div className="mt-3">{children}</div>
       ) : (
-        <p className="text-base text-text mt-1.5">{value}</p>
+        <p className="text-base text-text mt-1.5 break-words [overflow-wrap:anywhere] min-w-0">{value}</p>
       )}
     </div>
   );
@@ -140,9 +165,13 @@ function NameSection({ name, onSaved }: { name: string; onSaved: () => void }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    await updateName.mutateAsync(value.trim());
-    setEditing(false);
-    onSaved();
+    try {
+      await updateName.mutateAsync(value.trim());
+      setEditing(false);
+      onSaved();
+    } catch {
+      // erro já exposto via updateName.error
+    }
   }
 
   return (
@@ -160,7 +189,9 @@ function NameSection({ name, onSaved }: { name: string; onSaved: () => void }) {
           required
         />
         {updateName.isError && (
-          <p className="text-sm text-rough">{(updateName.error as Error).message}</p>
+          <p className="text-sm text-rough" role="alert">
+            {(updateName.error as Error).message}
+          </p>
         )}
         <div className="flex gap-2">
           <button
@@ -201,13 +232,17 @@ function EmailSection({ email, onSaved }: { email: string; onSaved: () => void }
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    await changeEmail.mutateAsync({
-      new_email: newEmail.trim(),
-      confirm_new_email: confirmEmail.trim(),
-      password,
-    });
-    setEditing(false);
-    onSaved();
+    try {
+      await changeEmail.mutateAsync({
+        new_email: newEmail.trim(),
+        confirm_new_email: confirmEmail.trim(),
+        password,
+      });
+      setEditing(false);
+      onSaved();
+    } catch {
+      // erro já exposto via changeEmail.error
+    }
   }
 
   return (
@@ -222,7 +257,11 @@ function EmailSection({ email, onSaved }: { email: string; onSaved: () => void }
             onChange={setConfirmEmail}
             autoComplete="email"
           />
-          {showMismatch && <p className="text-sm text-rough mt-1.5">Os e-mails não conferem.</p>}
+          {showMismatch && (
+            <p className="text-sm text-rough mt-1.5" role="alert">
+              Os e-mails não conferem.
+            </p>
+          )}
         </div>
         <Field
           label="Senha atual"
@@ -233,7 +272,9 @@ function EmailSection({ email, onSaved }: { email: string; onSaved: () => void }
           helper="Confirme sua senha para trocar o e-mail."
         />
         {changeEmail.isError && (
-          <p className="text-sm text-rough">{(changeEmail.error as Error).message}</p>
+          <p className="text-sm text-rough" role="alert">
+            {(changeEmail.error as Error).message}
+          </p>
         )}
         <div className="flex gap-2">
           <button
@@ -276,13 +317,17 @@ function PasswordSection({ onSaved }: { onSaved: () => void }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    await changePassword.mutateAsync({
-      current_password: currentPassword,
-      new_password: newPassword,
-      confirm_new_password: confirmPassword,
-    });
-    setEditing(false);
-    onSaved();
+    try {
+      await changePassword.mutateAsync({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_new_password: confirmPassword,
+      });
+      setEditing(false);
+      onSaved();
+    } catch {
+      // erro já exposto via changePassword.error
+    }
   }
 
   return (
@@ -305,7 +350,9 @@ function PasswordSection({ onSaved }: { onSaved: () => void }) {
             helper="Mínimo 8 caracteres, com letras e números."
           />
           {showWeakPassword && (
-            <p className="text-sm text-rough mt-1.5">A senha precisa ter letras e números.</p>
+            <p className="text-sm text-rough mt-1.5" role="alert">
+              A senha precisa ter letras e números.
+            </p>
           )}
         </div>
         <div>
@@ -316,10 +363,16 @@ function PasswordSection({ onSaved }: { onSaved: () => void }) {
             onChange={setConfirmPassword}
             autoComplete="new-password"
           />
-          {showMismatch && <p className="text-sm text-rough mt-1.5">As senhas não conferem.</p>}
+          {showMismatch && (
+            <p className="text-sm text-rough mt-1.5" role="alert">
+              As senhas não conferem.
+            </p>
+          )}
         </div>
         {changePassword.isError && (
-          <p className="text-sm text-rough">{(changePassword.error as Error).message}</p>
+          <p className="text-sm text-rough" role="alert">
+            {(changePassword.error as Error).message}
+          </p>
         )}
         <div className="flex gap-2">
           <button
@@ -335,5 +388,127 @@ function PasswordSection({ onSaved }: { onSaved: () => void }) {
         </div>
       </form>
     </SectionCard>
+  );
+}
+
+function ExportSection() {
+  const exportData = useExportMyData();
+
+  async function handleExport() {
+    try {
+      const data = await exportData.mutateAsync();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dayup-meus-dados-${todayISO()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // erro já exposto via exportData.error
+    }
+  }
+
+  return (
+    <div className="surface-raised rounded-card p-5">
+      <div className="label !mb-0">Meus dados</div>
+      <p className="text-text-2 text-sm mt-1.5">
+        Baixe uma cópia de tudo que você registrou: metas, dias e notas.
+      </p>
+      <button
+        type="button"
+        onClick={handleExport}
+        disabled={exportData.isPending}
+        className="btn mt-3 disabled:opacity-50"
+      >
+        <Download size={16} /> {exportData.isPending ? "Gerando…" : "Exportar meus dados"}
+      </button>
+      {exportData.isError && (
+        <p className="text-sm text-rough mt-2" role="alert">
+          {(exportData.error as Error).message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DeleteAccountSection() {
+  const deleteAccount = useDeleteAccount();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+
+  function startOpen() {
+    setPassword("");
+    deleteAccount.reset();
+    setOpen(true);
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!password) return;
+    const ok = window.confirm(
+      "Essa ação é permanente e apaga todos os seus dados. Tem certeza que quer excluir sua conta?",
+    );
+    if (!ok) return;
+    try {
+      await deleteAccount.mutateAsync(password);
+      navigate("/", { replace: true });
+    } catch {
+      // erro já exposto via deleteAccount.error
+    }
+  }
+
+  return (
+    <div className="rounded-card p-5 mt-6 border border-rough/30 bg-rough/5">
+      <div className="flex items-center gap-2 text-rough">
+        <TriangleAlert size={16} />
+        <span className="text-[11px] uppercase tracking-[0.1em] font-semibold">Zona de risco</span>
+      </div>
+      <h2 className="display text-[18px] mt-2">Excluir conta</h2>
+      <p className="text-text-2 text-sm mt-1.5">
+        Isso é permanente: apaga sua conta, suas metas e todo o seu histórico. Não tem como
+        desfazer.
+      </p>
+
+      {!open ? (
+        <button
+          type="button"
+          onClick={startOpen}
+          className="btn mt-3 text-rough hover:!border-rough/40"
+        >
+          Excluir conta
+        </button>
+      ) : (
+        <form onSubmit={submit} className="flex flex-col gap-3 mt-3">
+          <Field
+            label="Confirme sua senha"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+          />
+          {deleteAccount.isError && (
+            <p className="text-sm text-rough" role="alert">
+              {(deleteAccount.error as Error).message}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={!password || deleteAccount.isPending}
+              className="btn flex-1 text-rough hover:!border-rough/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleteAccount.isPending ? "Excluindo…" : "Confirmar exclusão"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="btn">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
