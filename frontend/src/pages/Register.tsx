@@ -89,7 +89,7 @@ export default function Register() {
           )}
         </div>
         {register.isError && (
-          <p className="text-sm text-rough">{(register.error as Error).message}</p>
+          <p className="text-sm text-rough" role="alert">{(register.error as Error).message}</p>
         )}
         <button
           type="submit"

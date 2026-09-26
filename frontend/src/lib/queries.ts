@@ -1,6 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { ApiError, apiFetch } from "./api";
-import type { DayLog, Goal, Stats, User } from "./types";
+import { todayISO } from "./format";
+import type { DayLog, ExportData, Goal, Stats, User } from "./types";
 
 export const qk = {
   me: ["auth", "me"] as const,
@@ -9,6 +16,12 @@ export const qk = {
   dayLog: (date: string) => ["day-logs", date] as const,
   stats: ["stats"] as const,
 };
+
+// Limpa todo o cache privado (metas, dias, stats…) — usado sempre que a sessão
+// termina (logout, 401 confirmado) ou a identidade muda (login/cadastro).
+function clearPrivateCache(qc: QueryClient) {
+  qc.clear();
+}
 
 export function useMe() {
   return useQuery({
@@ -30,7 +43,10 @@ export function useLogin() {
   return useMutation({
     mutationFn: (payload: { email: string; password: string }) =>
       apiFetch<User>("/auth/login", { method: "POST", body: payload }),
-    onSuccess: (user) => qc.setQueryData(qk.me, user),
+    onSuccess: (user) => {
+      clearPrivateCache(qc);
+      qc.setQueryData(qk.me, user);
+    },
   });
 }
 
@@ -43,7 +59,10 @@ export function useRegister() {
       password: string;
       confirm_password: string;
     }) => apiFetch<User>("/auth/register", { method: "POST", body: payload }),
-    onSuccess: (user) => qc.setQueryData(qk.me, user),
+    onSuccess: (user) => {
+      clearPrivateCache(qc);
+      qc.setQueryData(qk.me, user);
+    },
   });
 }
 
@@ -87,8 +106,26 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => apiFetch<void>("/auth/logout", { method: "POST" }),
     onSuccess: () => {
+      clearPrivateCache(qc);
       qc.setQueryData(qk.me, null);
-      qc.removeQueries();
+    },
+  });
+}
+
+export function useExportMyData() {
+  return useMutation({
+    mutationFn: () => apiFetch<ExportData>("/auth/me/export"),
+  });
+}
+
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (password: string) =>
+      apiFetch<void>("/auth/me/delete", { method: "POST", body: { password } }),
+    onSuccess: () => {
+      clearPrivateCache(qc);
+      qc.setQueryData(qk.me, null);
     },
   });
 }
@@ -101,10 +138,17 @@ export function useGoals(opts?: { includeArchived?: boolean }) {
   });
 }
 
+// Histórico paginado — cada página busca os `limit` registros armazenados mais
+// recentes antes do mais antigo já carregado (`before`). Retorna só dias com
+// linha no banco; a tela "Hoje"/Home sintetiza os dias sem registro.
 export function useDayLogs(limit = 14) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...qk.dayLogs, { limit }],
-    queryFn: () => apiFetch<DayLog[]>(`/day-logs?limit=${limit}`),
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      apiFetch<DayLog[]>(`/day-logs?limit=${limit}${pageParam ? `&before=${pageParam}` : ""}`),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length < limit ? undefined : lastPage[lastPage.length - 1]?.date,
   });
 }
 
@@ -123,9 +167,10 @@ export function useDayLog(date: string) {
 }
 
 export function useStats() {
+  const today = todayISO();
   return useQuery({
-    queryKey: qk.stats,
-    queryFn: () => apiFetch<Stats>("/stats"),
+    queryKey: [...qk.stats, today],
+    queryFn: () => apiFetch<Stats>(`/stats?today=${today}`),
   });
 }
 
@@ -136,8 +181,10 @@ type SaveDayPayload = {
   entries: { goal_id: string; level: number; done_at: string | null }[];
 };
 
-function invalidateDay(qc: ReturnType<typeof useQueryClient>, date: string) {
-  qc.invalidateQueries({ queryKey: qk.dayLog(date) });
+// Grava a resposta do servidor direto no cache (sem esperar refetch) e invalida
+// as listas/estatísticas agregadas, que precisam ser recalculadas no servidor.
+function applyDayResult(qc: QueryClient, data: DayLog) {
+  qc.setQueryData(qk.dayLog(data.date), data);
   qc.invalidateQueries({ queryKey: qk.dayLogs });
   qc.invalidateQueries({ queryKey: qk.stats });
 }
@@ -148,7 +195,7 @@ export function useSaveDay() {
   return useMutation({
     mutationFn: ({ date, ...body }: SaveDayPayload) =>
       apiFetch<DayLog>(`/day-logs/${date}`, { method: "PUT", body }),
-    onSuccess: (data) => invalidateDay(qc, data.date),
+    onSuccess: (data) => applyDayResult(qc, data),
   });
 }
 
@@ -158,7 +205,7 @@ export function useFinalizeDay() {
   return useMutation({
     mutationFn: (date: string) =>
       apiFetch<DayLog>(`/day-logs/${date}/finalize`, { method: "POST" }),
-    onSuccess: (data) => invalidateDay(qc, data.date),
+    onSuccess: (data) => applyDayResult(qc, data),
   });
 }
 
@@ -167,19 +214,7 @@ export function useDayOff() {
   return useMutation({
     mutationFn: (date: string) =>
       apiFetch<DayLog>(`/day-logs/${date}/dayoff`, { method: "POST" }),
-    onSuccess: (data) => invalidateDay(qc, data.date),
-  });
-}
-
-export function useDeleteDayLog() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (date: string) =>
-      apiFetch<void>(`/day-logs/${date}`, { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.dayLogs });
-      qc.invalidateQueries({ queryKey: qk.stats });
-    },
+    onSuccess: (data) => applyDayResult(qc, data),
   });
 }
 

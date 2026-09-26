@@ -1,21 +1,31 @@
 import { FormEvent, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useLogin, useMe } from "@/lib/queries";
+
+// Só aceita caminhos internos (evita open-redirect via location.state.from):
+// precisa começar com uma única "/" e não pode ser protocol-relative ("//host").
+function safeRedirect(from: unknown, fallback: string): string {
+  if (typeof from === "string" && from.startsWith("/") && !from.startsWith("//")) return from;
+  return fallback;
+}
 
 export default function Login() {
   const me = useMe();
   const login = useLogin();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  if (me.data) return <Navigate to="/app" replace />;
+  const redirectTo = safeRedirect((location.state as { from?: unknown } | null)?.from, "/app");
+
+  if (me.data) return <Navigate to={redirectTo} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     await login.mutateAsync({ email, password });
-    navigate("/app", { replace: true });
+    navigate(redirectTo, { replace: true });
   }
 
   return (
@@ -36,7 +46,7 @@ export default function Login() {
           autoComplete="current-password"
         />
         {login.isError && (
-          <p className="text-sm text-rough">{(login.error as Error).message}</p>
+          <p className="text-sm text-rough" role="alert">{(login.error as Error).message}</p>
         )}
         <button
           type="submit"

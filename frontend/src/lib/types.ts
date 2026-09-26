@@ -44,6 +44,15 @@ export interface Stats {
   average_score: number;
   score_last_14: number;
   score_prev_14: number;
+  scored_days_last_14: number;
+  scored_days_prev_14: number;
+}
+
+export interface ExportData {
+  exported_at: string;
+  user: { id: string; email: string; name: string; created_at: string };
+  goals: Goal[];
+  day_logs: DayLog[];
 }
 
 // ── Category visual mapping ──────────────────────────
@@ -74,7 +83,7 @@ export const LEVEL_OPTIONS: {
   tone: EffortTone;
   color: string;
 }[] = [
-  { value: 0, label: "Não feito", hint: "0%", emoji: "❌", tone: "miss", color: "#5a4d39" },
+  { value: 0, label: "Não feito", hint: "0%", emoji: "❌", tone: "miss", color: "#9c8a6e" },
   { value: 0.4, label: "Fraca", hint: "40%", emoji: "🟡", tone: "weak", color: "#c68410" },
   { value: 0.7, label: "Média", hint: "70%", emoji: "🟠", tone: "mid", color: "#f5b528" },
   { value: 1, label: "Perfeito", hint: "100%", emoji: "🟢", tone: "perfect", color: "#8ad36b" },
