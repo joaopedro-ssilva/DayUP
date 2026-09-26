@@ -202,7 +202,10 @@ export default function Home() {
         />
       )}
 
-      {showOnboarding && <Onboarding onClose={() => setShowOnboarding(false)} />}
+      {showOnboarding && goals.isSuccess && (
+        <Onboarding key={userId} hasActiveGoals={goals.data.some((g) => !g.archived_at)}
+          onClose={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 }

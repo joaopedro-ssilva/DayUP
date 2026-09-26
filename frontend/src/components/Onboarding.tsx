@@ -1,79 +1,87 @@
-import { useRef, useState } from "react";
-import {
-  ChartLine,
-  ChevronLeft,
-  ChevronRight,
-  Flame,
-  Target,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+﻿import { useEffect, useRef, useState } from "react";
+import { ChartLine, Check, Flame, Target, X } from "lucide-react";
 
-import { useMarkOnboardingSeen } from "@/lib/queries";
+import { useCreateGoalsBatch, useMarkOnboardingSeen } from "@/lib/queries";
+import { CATALOG, PACKS, catalogToGoalIn } from "@/lib/goalCatalog";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import CatalogSelection from "./onboarding/CatalogSelection";
 
-type Step = {
-  icon: LucideIcon;
-  title: React.ReactNode;
-  body: string;
-};
-
-const STEPS: Step[] = [
-  {
-    icon: Target,
-    title: <>Crie suas <span className="text-primary">metas</span></>,
-    body:
-      "Monte sua rotina por categoria (saúde, estudo, sono…), com pesos diferentes pra cada meta. Defina os dias da semana em que ela vale.",
-  },
-  {
-    icon: Flame,
-    title: <>Marque como foi seu <span className="text-primary">dia</span></>,
-    body:
-      "A cada dia, registra o esforço de cada meta (não feito / fraca / média / perfeito), uma mood opcional e uma nota livre se quiser.",
-  },
-  {
-    icon: ChartLine,
-    title: <>Veja seu <span className="text-primary">score</span></>,
-    body:
-      "Uma nota de 0 a 100 ponderada pelo peso das metas. Cada dia ganha um tier (Difícil, Regular, Bom, Excelente, Perfeito) com cor própria.",
-  },
-  {
-    icon: ChartLine,
-    title: <>Acompanhe sua <span className="text-primary">evolução</span></>,
-    body:
-      "Histórico estilo match-history com seu streak, consistência, score médio e tendência de 14 dias. Day Off não quebra streak.",
-  },
+const INTRO = [
+  { icon: Target, text: "Escolha metas com peso e dias da semana." },
+  { icon: Flame, text: "Marque o esforço de cada uma no check-in." },
+  { icon: ChartLine, text: "Cada dia ganha um score de 0 a 100 e entra no histórico." },
 ];
 
-export default function Onboarding({ onClose }: { onClose: () => void }) {
+export default function Onboarding({ onClose, hasActiveGoals }: {
+  onClose: () => void;
+  hasActiveGoals: boolean;
+}) {
   const mark = useMarkOnboardingSeen();
+  const create = useCreateGoalsBatch();
+  // Mantém o fluxo estável enquanto a criação atualiza a consulta de metas.
+  const [introOnly] = useState(hasActiveGoals);
   const [step, setStep] = useState(0);
+  const [packId, setPackId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [closing, setClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  const isLast = step === STEPS.length - 1;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const dismissing = useRef(false);
+  const submitting = useRef(false);
+  const dismissed = useRef(false);
+  const busy = create.isPending || closing;
 
   async function dismiss() {
-    if (closing || mark.isPending) return;
+    if (dismissing.current) return;
+    dismissing.current = true;
+    dismissed.current = true;
     setClosing(true);
     try {
-      // Grava na conta: o onboarding não volta nem em outro dispositivo.
       await mark.mutateAsync();
+    } catch {
+      // Mantém o comportamento de fechar mesmo se a gravação de "visto" falhar.
     } finally {
       onClose();
     }
   }
 
-  useModalA11y(panelRef, dismiss);
+  // O hook registra o callback na montagem; refs protegem também Escape/backdrop.
+  useModalA11y(panelRef, dismiss, titleRef);
+  useEffect(() => {
+    titleRef.current?.focus();
+    contentRef.current?.scrollTo(0, 0);
+  }, [step]);
 
-  const Step = STEPS[step].icon;
+  async function createRoutine() {
+    if (submitting.current || dismissing.current || selected.size === 0) return;
+    submitting.current = true;
+    try {
+      await create.mutateAsync(CATALOG.filter((g) => selected.has(g.id)).map(catalogToGoalIn));
+      if (!dismissed.current) await dismiss();
+    } catch {
+      // A mutação expõe o erro sem apagar a seleção para a próxima tentativa.
+    } finally {
+      submitting.current = false;
+    }
+  }
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const title = step === 0 ? "Cada dia vira uma partida"
+    : step === 1 ? "Por onde você quer começar?" : "Sua rotina, do seu jeito";
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center p-0 sm:p-5 bg-black/75 backdrop-blur-md"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) dismiss();
-      }}
+      className="fixed inset-0 z-50 grid place-items-center bg-black/75 backdrop-blur-md p-0 sm:p-5"
+      onClick={(e) => { if (e.target === e.currentTarget) void dismiss(); }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
@@ -81,113 +89,87 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="relative w-full sm:max-w-[480px] h-dvh sm:h-auto sm:max-h-[88vh] flex flex-col sm:rounded-[20px] border border-border-2 overflow-hidden focus:outline-none"
-        style={{
-          background: "linear-gradient(180deg, #1e170e, #16110a)",
-          boxShadow: "0 50px 100px -20px rgba(0,0,0,0.8)",
-        }}
+        className="w-full max-w-[560px] h-dvh sm:h-auto sm:max-h-[88dvh] flex flex-col bg-gradient-to-b from-surface-2 to-surface sm:rounded-[20px] border border-border-2 overflow-hidden shadow-2xl"
+        style={{ paddingTop: "env(safe-area-inset-top)", paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}
       >
-        <button
-          onClick={dismiss}
-          aria-label="Pular onboarding"
-          className="absolute top-3 right-3 w-11 h-11 grid place-items-center rounded-lg bg-surface-3 border border-border text-text-2 hover:text-text z-10"
-        >
-          <X size={16} />
-        </button>
-
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-6 sm:px-10 py-12 sm:py-10 text-center">
-          <div
-            className="w-16 h-16 rounded-2xl grid place-items-center mb-6"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(245,181,40,0.22), rgba(245,181,40,0.06))",
-              border: "1px solid rgba(245,181,40,0.4)",
-              color: "#f5b528",
-              boxShadow: "0 0 0 1px rgba(255,201,74,0.2), 0 8px 24px -8px rgba(245,181,40,0.5)",
-            }}
-            aria-hidden
-          >
-            <Step size={28} strokeWidth={2} />
+        <header className="shrink-0 px-5 pt-3 pb-4 sm:px-7 border-b border-border">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <span className="text-xs uppercase tracking-widest text-primary nums">
+              {step + 1} de {introOnly ? 1 : 3}
+            </span>
+            <button type="button" onClick={() => void dismiss()} disabled={closing}
+              aria-label="Pular onboarding" className="btn-ghost !p-0 w-11 h-11 shrink-0">
+              <X size={18} aria-hidden="true" />
+            </button>
           </div>
-
-          <h2
-            id="onboarding-title"
-            className="display text-[26px] sm:text-[30px] uppercase leading-tight"
-          >
-            {STEPS[step].title}
+          {/* Recebe o foco ao abrir (leitor de tela anuncia o passo), sem contorno visível. */}
+          <h2 ref={titleRef} tabIndex={-1} id="onboarding-title"
+            className="display text-[26px] sm:text-[30px] uppercase leading-tight outline-none focus:outline-none focus-visible:outline-none">
+            {title}
           </h2>
-          <p className="text-text-2 text-[14px] sm:text-[15px] leading-relaxed mt-3 max-w-[380px]">
-            {STEPS[step].body}
-          </p>
-        </div>
+          {step === 1 && <p className="text-sm text-text-2 mt-2">Escolha um pack. Você pode ajustar as metas no próximo passo.</p>}
+          {step === 2 && <p className="text-sm text-primary mt-2" role="status">{selected.size} metas selecionadas</p>}
+        </header>
 
-        <footer className="shrink-0 px-6 sm:px-7 py-5 border-t border-border flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
-            className="btn-ghost !px-3 disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Anterior"
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          <div className="flex" role="tablist" aria-label="Passo">
-            {STEPS.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setStep(i)}
-                aria-label={`Ir para passo ${i + 1}`}
-                aria-current={i === step ? "step" : undefined}
-                className="w-11 h-11 grid place-items-center shrink-0"
-              >
-                <span
-                  className="h-1.5 rounded-full transition-all"
-                  style={{
-                    width: i === step ? 24 : 8,
-                    background: i === step ? "#f5b528" : "#3a2c1a",
-                  }}
-                  aria-hidden
-                />
-              </button>
-            ))}
-          </div>
-
-          {isLast ? (
-            <button
-              type="button"
-              onClick={dismiss}
-              disabled={mark.isPending}
-              className="btn-primary !px-4"
-            >
-              Começar →
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-              className="btn-primary !px-3"
-              aria-label="Próximo"
-            >
-              <ChevronRight size={18} />
-            </button>
+        <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-5 sm:px-7">
+          {step === 0 && (
+            <div className="py-4 sm:py-6">
+              <div className="w-16 h-16 rounded-2xl grid place-items-center bg-primary/10 border border-primary/40 text-primary mb-6" aria-hidden="true">
+                <Target size={30} />
+              </div>
+              <ul className="space-y-5">
+                {INTRO.map(({ icon: Icon, text }) => (
+                  <li key={text} className="flex items-start gap-3 text-text-2 text-[15px] leading-relaxed">
+                    <Icon size={20} className="text-primary shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </footer>
-
-        <div
-          className="text-center pb-4 shrink-0"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
-        >
-          <button
-            type="button"
-            onClick={dismiss}
-            disabled={mark.isPending}
-            className="inline-flex items-center min-h-[44px] -my-3 text-[12px] text-muted hover:text-text-2"
-          >
-            Pular tudo
-          </button>
+          {step === 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[...PACKS, { id: "zero", name: "Escolher do zero", emoji: "✨", desc: "Monte sua seleção de metas no próximo passo.", goalIds: [] }].map((pack) => {
+                const active = packId === pack.id;
+                return (
+                  <button key={pack.id} type="button" aria-pressed={active} disabled={busy}
+                    onClick={() => { setPackId(pack.id); setSelected(new Set(pack.goalIds)); }}
+                    className={`min-h-[44px] text-left p-3.5 rounded-xl border transition-colors ${active ? "bg-primary/10 border-primary" : "bg-bg-2 border-border hover:border-border-2"}`}>
+                    <span className="flex items-center gap-2 mb-2">
+                      <span className="text-xl" aria-hidden="true">{pack.emoji}</span>
+                      <span className="display text-lg flex-1">{pack.name}</span>
+                      {active && <Check size={18} className="text-primary shrink-0" aria-hidden="true" />}
+                    </span>
+                    <span className="block text-xs text-text-2 leading-relaxed">{pack.desc}</span>
+                    <span className="block text-xs text-primary mt-2">{pack.goalIds.length} metas</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {step === 2 && <CatalogSelection selected={selected} onToggle={toggle} disabled={busy} />}
         </div>
+
+        <footer className="shrink-0 px-5 pt-4 sm:px-7 border-t border-border bg-surface"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}>
+          {create.isError && <p className="text-sm text-rough mb-3" role="alert">{create.error.message}</p>}
+          <button type="button" disabled={busy || (step === 1 && packId === null) || (step === 2 && selected.size === 0)}
+            onClick={() => {
+              if (introOnly) void dismiss();
+              else if (step === 2) void createRoutine();
+              else setStep((current) => current + 1);
+            }}
+            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+            {create.isPending ? "Criando…" : closing ? "Concluindo…" : introOnly ? "Começar"
+              : step === 0 ? "Montar minha rotina" : step === 1 ? "Continuar"
+              : selected.size === 0 ? "Escolha pelo menos uma meta" : `Criar ${selected.size} metas`}
+          </button>
+          <div className="flex justify-between gap-3 mt-2">
+            {step > 0 && <button type="button" onClick={() => setStep((current) => current - 1)} disabled={busy}
+              className="btn-ghost disabled:opacity-50">Voltar</button>}
+            <button type="button" onClick={() => void dismiss()} disabled={closing} className="btn-ghost ml-auto">Pular</button>
+          </div>
+        </footer>
       </div>
     </div>
   );
