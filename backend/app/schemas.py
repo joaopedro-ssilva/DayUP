@@ -130,6 +130,10 @@ class GoalIn(BaseModel):
         return sorted(set(v))
 
 
+class GoalBatchIn(BaseModel):
+    goals: Annotated[list[GoalIn], Field(min_length=1, max_length=30)]
+
+
 class GoalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID

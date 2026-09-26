@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Goal, User
-from app.schemas import GoalIn, GoalOut
+from app.schemas import GoalBatchIn, GoalIn, GoalOut
 from app.security import get_current_user, now_utc
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -34,6 +34,8 @@ def create_goal(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Goal:
+    # Compartilha o lock com lotes para preservar o limite em escritas simultâneas.
+    db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
     active_count = db.execute(
         select(func.count())
         .select_from(Goal)
@@ -53,6 +55,36 @@ def create_goal(
     db.commit()
     db.refresh(goal)
     return goal
+
+
+@router.post("/batch", response_model=list[GoalOut], status_code=status.HTTP_201_CREATED)
+def create_goals_batch(
+    payload: GoalBatchIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[Goal]:
+    # Serializa lotes do mesmo usuário, inclusive dois toques simultâneos.
+    db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
+    active_names = db.execute(
+        select(Goal.name).where(Goal.user_id == user.id, Goal.archived_at.is_(None))
+    ).scalars().all()
+    seen = {name.strip().casefold() for name in active_names}
+    goals = []
+    for item in payload.goals:
+        normalized_name = item.name.strip().casefold()
+        if normalized_name in seen:
+            continue
+        seen.add(normalized_name)
+        goals.append(Goal(user_id=user.id, **item.model_dump()))
+
+    if len(active_names) + len(goals) > MAX_ACTIVE_GOALS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Limite de 100 metas ativas atingido.")
+
+    db.add_all(goals)
+    db.commit()
+    for goal in goals:
+        db.refresh(goal)
+    return goals
 
 
 def _get_owned_goal(db: Session, user: User, goal_id: uuid.UUID) -> Goal:

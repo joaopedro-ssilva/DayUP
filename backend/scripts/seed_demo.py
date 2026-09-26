@@ -46,7 +46,7 @@ TT = [1, 3]
 GOALS_SPEC = [
     {"name": "Beber 2L de água",   "category": GoalCategory.health,   "weight": 3, "days": ALL_DAYS},
     {"name": "Dormir 8 horas",     "category": GoalCategory.sleep,    "weight": 3, "days": ALL_DAYS},
-    {"name": "Treino na academia", "category": GoalCategory.wellness, "weight": 3, "days": MWF},
+    {"name": "Treino na academia", "category": GoalCategory.health,   "weight": 3, "days": MWF},
     {"name": "Ler 30 minutos",     "category": GoalCategory.study,    "weight": 2, "days": WEEKDAYS},
     {"name": "Meditar 10min",      "category": GoalCategory.wellness, "weight": 2, "days": ALL_DAYS},
     {"name": "Comer 5 vegetais",   "category": GoalCategory.food,     "weight": 2, "days": ALL_DAYS},
