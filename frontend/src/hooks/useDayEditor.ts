@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { type GoalLevel } from "@/lib/types";
-import { computeScore, effectiveGoalsForDate, stateLabel, weekdayOf } from "@/lib/day";
+import { computeScore, effectiveGoalsForDate, scoreItemsForDraft, stateLabel, weekdayOf } from "@/lib/day";
 import { useDayLog, useDayOff, useFinalizeDay, useGoals, useSaveDay } from "@/lib/queries";
 
 /**
@@ -35,14 +35,33 @@ export function useDayEditor(date: string) {
   const [reopened, setReopened] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [hydratedDate, setHydratedDate] = useState<string | null>(null);
+  const clearedGoals = useRef(new Set<string>());
 
-  // Hidrata o rascunho local uma vez por data, a partir do servidor. Nunca
-  // pisa em cima de um rascunho "sujo" quando as queries refazem o fetch (ex:
-  // depois de salvar) — só reidrata de novo quando a data muda.
+  // Refetch acrescenta entries novas sem sobrescrever edições ou desmarcações.
   useEffect(() => {
     if (!queriesReady) return;
-    if (date === hydratedDate && dirty) return;
+    if (date === hydratedDate && dirty) {
+      const added = (existing.data?.entries ?? []).filter(
+        (e) => levels[e.goal_id] === undefined && !clearedGoals.current.has(e.goal_id),
+      );
+      if (added.length > 0) {
+        setLevels((prev) => ({
+          ...prev,
+          ...Object.fromEntries(added.map((e) => [e.goal_id, e.level as GoalLevel])),
+        }));
+        setTimes((prev) => {
+          const next = { ...prev };
+          for (const e of added) {
+            if (e.done_at) next[e.goal_id] = e.done_at.slice(0, 5);
+            else delete next[e.goal_id];
+          }
+          return next;
+        });
+      }
+      return;
+    }
 
+    clearedGoals.current.clear();
     const nextLevels: Record<string, GoalLevel> = {};
     const nextTimes: Record<string, string> = {};
     for (const e of existing.data?.entries ?? []) {
@@ -67,8 +86,8 @@ export function useDayEditor(date: string) {
     ? Math.round((evaluatedCount / effectiveGoals.length) * 100)
     : 0;
   const score = useMemo(
-    () => computeScore(effectiveGoals.map((eg) => ({ weight: eg.weight, level: levels[eg.goal.id] }))),
-    [effectiveGoals, levels],
+    () => computeScore(scoreItemsForDraft(effectiveGoals, levels, weekday)),
+    [effectiveGoals, levels, weekday],
   );
   const label = stateLabel(progress, score ?? 0);
   const perfectCount = Object.values(levels).filter((v) => v === 1).length;
@@ -88,6 +107,8 @@ export function useDayEditor(date: string) {
     if (!queriesReady || busy) return;
     if (!guardEdit()) return;
     setDirty(true);
+    if (levels[goalId] === value) clearedGoals.current.add(goalId);
+    else clearedGoals.current.delete(goalId);
     setLevels((prev) => {
       const next = { ...prev };
       if (next[goalId] === value) delete next[goalId]; // toque de novo desmarca
@@ -137,6 +158,7 @@ export function useDayEditor(date: string) {
   async function save() {
     if (!queriesReady || busy) return undefined;
     const result = await saveDay.mutateAsync(buildPayload());
+    clearedGoals.current.clear();
     setReopened(false);
     setDirty(false);
     return result;
@@ -146,6 +168,7 @@ export function useDayEditor(date: string) {
     if (!queriesReady || busy) return undefined;
     await saveDay.mutateAsync(buildPayload());
     const result = await finalizeDay.mutateAsync(date);
+    clearedGoals.current.clear();
     setReopened(false);
     setDirty(false);
     return result;
@@ -154,6 +177,7 @@ export function useDayEditor(date: string) {
   async function markDayOff() {
     if (!queriesReady || busy) return undefined;
     const result = await dayOff.mutateAsync(date);
+    clearedGoals.current.clear();
     setReopened(false);
     setDirty(false);
     return result;

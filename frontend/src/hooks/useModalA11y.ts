@@ -12,6 +12,7 @@ const FOCUSABLE =
 export function useModalA11y<T extends HTMLElement>(
   panelRef: RefObject<T | null>,
   onClose: () => void,
+  initialFocusRef?: RefObject<HTMLElement | null>,
 ): void {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -42,7 +43,7 @@ export function useModalA11y<T extends HTMLElement>(
     }
     document.addEventListener("keydown", onKey);
     const raf = requestAnimationFrame(() => {
-      const el = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      const el = initialFocusRef?.current ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
       (el ?? panelRef.current)?.focus();
     });
 

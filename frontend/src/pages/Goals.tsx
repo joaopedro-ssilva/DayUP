@@ -247,15 +247,18 @@ function CatPill({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={[
+      className="inline-flex items-center min-h-[44px] -my-1"
+    >
+      <span className={[
         "inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors min-h-[36px]",
         active
           ? "bg-primary border-primary text-ink font-semibold"
           : "bg-surface border-border text-text-2 hover:text-text hover:border-border-2",
       ].join(" ")}
       style={!active && color ? { color } : undefined}
-    >
-      {children}
+      >
+        {children}
+      </span>
     </button>
   );
 }
@@ -490,7 +493,7 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
                         onClick={() => !added && addPreset(p)}
                         disabled={added || create.isPending}
                         className={[
-                          "w-full flex items-center gap-2.5 p-2 mb-1.5 rounded-lg border bg-bg-2 transition-colors text-left disabled:opacity-60 disabled:cursor-default",
+                          "w-full min-h-[44px] flex items-center gap-2.5 p-2 mb-1.5 rounded-lg border bg-bg-2 transition-colors text-left disabled:opacity-60 disabled:cursor-default",
                           added ? "border-border" : "border-border hover:bg-surface hover:border-border-2",
                         ].join(" ")}
                       >
@@ -548,6 +551,7 @@ function GoalModal({
   const update = useUpdateGoal();
   const isEdit = !!initial;
   const panelRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const titleId = "goal-modal-title";
 
   const [name, setName] = useState(initial?.name ?? "");
@@ -560,7 +564,7 @@ function GoalModal({
   const saving = create.isPending || update.isPending;
   const saveError = (create.error ?? update.error) as Error | null;
 
-  useModalA11y(panelRef, onClose);
+  useModalA11y(panelRef, onClose, nameRef);
 
   function toggleDay(i: number) {
     setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
@@ -635,7 +639,7 @@ function GoalModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Treinar 45min, Ler antes de dormir…"
-              autoFocus
+              ref={nameRef}
             />
           </div>
 
@@ -746,9 +750,11 @@ function GoalModal({
                   key={s.label}
                   type="button"
                   onClick={() => setDays(s.days)}
-                  className="px-2.5 py-1.5 bg-surface-3 border border-border rounded-full text-[11px] text-text-2 hover:text-text hover:border-border-2"
+                  className="inline-flex items-center min-h-[44px] -my-1.5 text-[11px] text-text-2 hover:text-text group"
                 >
-                  {s.label}
+                  <span className="px-2.5 py-1.5 bg-surface-3 border border-border rounded-full group-hover:border-border-2">
+                    {s.label}
+                  </span>
                 </button>
               ))}
             </div>

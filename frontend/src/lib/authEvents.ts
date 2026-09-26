@@ -5,6 +5,7 @@
 type Listener = () => void;
 
 let listener: Listener | null = null;
+let revalidateListener: Listener | null = null;
 
 export function onSessionExpired(fn: Listener): void {
   listener = fn;
@@ -12,4 +13,12 @@ export function onSessionExpired(fn: Listener): void {
 
 export function emitSessionExpired(): void {
   listener?.();
+}
+
+export function onSessionRevalidate(fn: Listener): void {
+  revalidateListener = fn;
+}
+
+export function emitSessionRevalidate(): void {
+  revalidateListener?.();
 }

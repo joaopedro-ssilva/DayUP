@@ -1,6 +1,6 @@
 // Cliente HTTP que envia cookies (sessão) e ecoa o CSRF token em métodos não-seguros.
 // O backend devolve um cookie CSRF legível (não httpOnly); reenviamos via header.
-import { emitSessionExpired } from "./authEvents";
+import { emitSessionExpired, emitSessionRevalidate } from "./authEvents";
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 const CSRF_COOKIE = "dayup_csrf";
@@ -9,9 +9,7 @@ const CSRF_HEADER = "X-CSRF-Token";
 // Endpoints em que um 401 significa "senha atual incorreta" (ou credencial
 // inválida no login/cadastro), não sessão expirada — não deve disparar a
 // limpeza global de cache nem redirecionar pro login.
-const SESSION_EVENT_EXEMPT_PATHS = new Set([
-  "/auth/login",
-  "/auth/register",
+const SESSION_REVALIDATE_PATHS = new Set([
   "/auth/me/change-password",
   "/auth/me/change-email",
   "/auth/me/delete",
@@ -74,8 +72,9 @@ export async function apiFetch<T>(path: string, opts: RequestOpts = {}): Promise
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await res.json() : await res.text();
   if (!res.ok) {
-    if (res.status === 401 && !SESSION_EVENT_EXEMPT_PATHS.has(path)) {
-      emitSessionExpired();
+    if (res.status === 401) {
+      if (SESSION_REVALIDATE_PATHS.has(path)) emitSessionRevalidate();
+      else if (path !== "/auth/login" && path !== "/auth/register") emitSessionExpired();
     }
     const message = (isJson ? extractErrorMessage(data) : null) ?? GENERIC_ERROR;
     throw new ApiError(res.status, message, data);

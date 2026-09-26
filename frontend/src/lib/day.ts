@@ -56,10 +56,25 @@ export function computeScore(items: ScoreItem[]): number | null {
 export type EffectiveGoal = {
   goal: Goal;
   archived: boolean;
-  /** Peso usado no cálculo: snapshot da entry existente, ou peso atual da meta. */
+  /** Snapshot da entry existente, ou peso atual da meta. */
   weight: number;
   hasEntry: boolean;
 };
+
+export function scoreItemsForDraft(
+  goals: EffectiveGoal[],
+  levels: Record<string, GoalLevel>,
+  weekday: number,
+): ScoreItem[] {
+  // A lista mantém entries salvas; o score só inclui as que restarão após salvar.
+  return goals
+    .filter(({ goal }) => levels[goal.id] !== undefined ||
+      (!goal.archived_at && goal.days_of_week.includes(weekday)))
+    .map(({ goal, weight, hasEntry }) => ({
+      weight: levels[goal.id] !== undefined && hasEntry ? weight : goal.weight,
+      level: levels[goal.id],
+    }));
+}
 
 /**
  * Conjunto efetivo de metas de uma data — E(date) do contrato: metas não

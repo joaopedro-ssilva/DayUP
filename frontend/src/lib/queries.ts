@@ -17,18 +17,25 @@ export const qk = {
   stats: ["stats"] as const,
 };
 
-// Limpa todo o cache privado (metas, dias, stats…) — usado sempre que a sessão
-// termina (logout, 401 confirmado) ou a identidade muda (login/cadastro).
-function clearPrivateCache(qc: QueryClient) {
-  qc.clear();
+let authGeneration = 0;
+
+// Preserva a consulta observada pelo RequireAuth ao trocar de sessão.
+export function resetPrivateCache(qc: QueryClient, me: User | null) {
+  authGeneration += 1;
+  void qc.cancelQueries();
+  qc.removeQueries({
+    predicate: ({ queryKey }) =>
+      queryKey.length !== qk.me.length || queryKey.some((key, i) => key !== qk.me[i]),
+  });
+  qc.setQueryData(qk.me, me);
 }
 
 export function useMe() {
   return useQuery({
     queryKey: qk.me,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       try {
-        return await apiFetch<User>("/auth/me");
+        return await apiFetch<User>("/auth/me", { signal });
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return null;
         throw e;
@@ -44,8 +51,7 @@ export function useLogin() {
     mutationFn: (payload: { email: string; password: string }) =>
       apiFetch<User>("/auth/login", { method: "POST", body: payload }),
     onSuccess: (user) => {
-      clearPrivateCache(qc);
-      qc.setQueryData(qk.me, user);
+      resetPrivateCache(qc, user);
     },
   });
 }
@@ -60,8 +66,7 @@ export function useRegister() {
       confirm_password: string;
     }) => apiFetch<User>("/auth/register", { method: "POST", body: payload }),
     onSuccess: (user) => {
-      clearPrivateCache(qc);
-      qc.setQueryData(qk.me, user);
+      resetPrivateCache(qc, user);
     },
   });
 }
@@ -69,30 +74,43 @@ export function useRegister() {
 export function useMarkOnboardingSeen() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: () => apiFetch<void>("/auth/me/onboarding-seen", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.me }),
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      return qc.invalidateQueries({ queryKey: qk.me });
+    },
   });
 }
 
 export function useUpdateName() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (name: string) => apiFetch<User>("/auth/me", { method: "PATCH", body: { name } }),
-    onSuccess: (user) => qc.setQueryData(qk.me, user),
+    onSuccess: (user, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      qc.setQueryData(qk.me, user);
+    },
   });
 }
 
 export function useChangeEmail() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (payload: { new_email: string; confirm_new_email: string; password: string }) =>
       apiFetch<User>("/auth/me/change-email", { method: "POST", body: payload }),
-    onSuccess: (user) => qc.setQueryData(qk.me, user),
+    onSuccess: (user, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      qc.setQueryData(qk.me, user);
+    },
   });
 }
 
 export function useChangePassword() {
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (payload: {
       current_password: string;
       new_password: string;
@@ -104,16 +122,18 @@ export function useChangePassword() {
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: () => apiFetch<void>("/auth/logout", { method: "POST" }),
-    onSuccess: () => {
-      clearPrivateCache(qc);
-      qc.setQueryData(qk.me, null);
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      resetPrivateCache(qc, null);
     },
   });
 }
 
 export function useExportMyData() {
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: () => apiFetch<ExportData>("/auth/me/export"),
   });
 }
@@ -121,11 +141,12 @@ export function useExportMyData() {
 export function useDeleteAccount() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (password: string) =>
       apiFetch<void>("/auth/me/delete", { method: "POST", body: { password } }),
-    onSuccess: () => {
-      clearPrivateCache(qc);
-      qc.setQueryData(qk.me, null);
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      resetPrivateCache(qc, null);
     },
   });
 }
@@ -134,7 +155,7 @@ export function useGoals(opts?: { includeArchived?: boolean }) {
   const params = opts?.includeArchived ? "?include_archived=true" : "";
   return useQuery({
     queryKey: [...qk.goals, opts?.includeArchived ?? false],
-    queryFn: () => apiFetch<Goal[]>(`/goals${params}`),
+    queryFn: ({ signal }) => apiFetch<Goal[]>(`/goals${params}`, { signal }),
   });
 }
 
@@ -144,8 +165,8 @@ export function useGoals(opts?: { includeArchived?: boolean }) {
 export function useDayLogs(limit = 14) {
   return useInfiniteQuery({
     queryKey: [...qk.dayLogs, { limit }],
-    queryFn: ({ pageParam }: { pageParam?: string }) =>
-      apiFetch<DayLog[]>(`/day-logs?limit=${limit}${pageParam ? `&before=${pageParam}` : ""}`),
+    queryFn: ({ pageParam, signal }) =>
+      apiFetch<DayLog[]>(`/day-logs?limit=${limit}${pageParam ? `&before=${pageParam}` : ""}`, { signal }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.length < limit ? undefined : lastPage[lastPage.length - 1]?.date,
@@ -155,9 +176,9 @@ export function useDayLogs(limit = 14) {
 export function useDayLog(date: string) {
   return useQuery({
     queryKey: qk.dayLog(date),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       try {
-        return await apiFetch<DayLog>(`/day-logs/${date}`);
+        return await apiFetch<DayLog>(`/day-logs/${date}`, { signal });
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) return null;
         throw e;
@@ -170,7 +191,7 @@ export function useStats() {
   const today = todayISO();
   return useQuery({
     queryKey: [...qk.stats, today],
-    queryFn: () => apiFetch<Stats>(`/stats?today=${today}`),
+    queryFn: ({ signal }) => apiFetch<Stats>(`/stats?today=${today}`, { signal }),
   });
 }
 
@@ -193,9 +214,13 @@ function applyDayResult(qc: QueryClient, data: DayLog) {
 export function useSaveDay() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: ({ date, ...body }: SaveDayPayload) =>
       apiFetch<DayLog>(`/day-logs/${date}`, { method: "PUT", body }),
-    onSuccess: (data) => applyDayResult(qc, data),
+    onSuccess: (data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      applyDayResult(qc, data);
+    },
   });
 }
 
@@ -203,43 +228,63 @@ export function useSaveDay() {
 export function useFinalizeDay() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (date: string) =>
       apiFetch<DayLog>(`/day-logs/${date}/finalize`, { method: "POST" }),
-    onSuccess: (data) => applyDayResult(qc, data),
+    onSuccess: (data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      applyDayResult(qc, data);
+    },
   });
 }
 
 export function useDayOff() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (date: string) =>
       apiFetch<DayLog>(`/day-logs/${date}/dayoff`, { method: "POST" }),
-    onSuccess: (data) => applyDayResult(qc, data),
+    onSuccess: (data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      applyDayResult(qc, data);
+    },
   });
 }
 
 export function useCreateGoal() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (payload: Omit<Goal, "id" | "archived_at">) =>
       apiFetch<Goal>("/goals", { method: "POST", body: payload }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.goals }),
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      return qc.invalidateQueries({ queryKey: qk.goals });
+    },
   });
 }
 
 export function useUpdateGoal() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: ({ id, ...payload }: Goal) =>
       apiFetch<Goal>(`/goals/${id}`, { method: "PUT", body: payload }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.goals }),
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      return qc.invalidateQueries({ queryKey: qk.goals });
+    },
   });
 }
 
 export function useArchiveGoal() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: () => ({ generation: authGeneration }),
     mutationFn: (id: string) => apiFetch<void>(`/goals/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.goals }),
+    onSuccess: (_data, _variables, context) => {
+      if (context?.generation !== authGeneration) return;
+      return qc.invalidateQueries({ queryKey: qk.goals });
+    },
   });
 }
