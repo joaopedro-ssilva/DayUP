@@ -44,7 +44,7 @@ Um dia pode ser registrado até o fim do dia seguinte sem quebrar o streak, e co
 ## Funcionalidades
 
 - Cadastro e login com sessão no servidor (cookie HttpOnly) e logout real
-- Metas com peso, categoria, dias da semana e biblioteca de metas prontas
+- Metas com peso, categoria e dias da semana, com 28 metas prontas e 5 packs (Rotina de dev, Saúde em dia, Foco nos estudos...) que o onboarding oferece logo no primeiro acesso
 - Check-in progressivo: salvar ao longo do dia, finalizar e reabrir
 - Histórico paginado com dias não registrados sinalizados
 - Métricas: streak atual/recorde, consistência, score médio e tendência de 14 dias
