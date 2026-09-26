@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -26,16 +26,13 @@ import {
   useGoals,
   useUpdateGoal,
 } from "@/lib/queries";
+import { jsWeekdayToBackend } from "@/lib/day";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 const CATEGORIES: GoalCategory[] = ["health", "study", "wellness", "food", "sleep"];
 const IMPORTANCE_LABEL: Record<1 | 2 | 3, string> = { 1: "Baixa", 2: "Média", 3: "Alta" };
 
 type Filter = "todas" | GoalCategory;
-
-function todayIdx(): number {
-  // backend: 0=segunda...6=domingo
-  return (new Date().getDay() + 6) % 7;
-}
 
 export default function Goals() {
   const goalsQ = useGoals();
@@ -44,6 +41,11 @@ export default function Goals() {
   const [modal, setModal] = useState<{ initial: Goal | null } | null>(null);
 
   const goals = goalsQ.data ?? [];
+
+  function handleArchive(g: Goal) {
+    if (!window.confirm("Arquivar meta? O histórico dela continua salvo.")) return;
+    archive.mutate(g.id);
+  }
   const filtered = useMemo(
     () => (filter === "todas" ? goals : goals.filter((g) => g.category === filter)),
     [goals, filter],
@@ -54,7 +56,7 @@ export default function Goals() {
     return c;
   }, [goals]);
 
-  const today = todayIdx();
+  const today = jsWeekdayToBackend(new Date().getDay());
   const todayCount = goals.filter((g) => g.days_of_week.includes(today)).length;
   const highCount = goals.filter((g) => g.weight === 3).length;
 
@@ -103,7 +105,7 @@ export default function Goals() {
         </div>
 
         {/* Category filter pills */}
-        <div className="flex gap-1.5 mb-3.5 overflow-x-auto no-scrollbar">
+        <div className="flex flex-wrap gap-1.5 mb-3.5">
           <CatPill active={filter === "todas"} onClick={() => setFilter("todas")}>
             Todas <Count value={counts.todas} active={filter === "todas"} />
           </CatPill>
@@ -128,6 +130,12 @@ export default function Goals() {
           })}
         </div>
 
+        {archive.isError && (
+          <p className="text-sm text-rough mb-3" role="alert">
+            {(archive.error as Error).message}
+          </p>
+        )}
+
         {/* Goals list */}
         <div>
           <h2 className="display text-[22px] flex items-baseline justify-between leading-none mt-4 mb-3">
@@ -142,7 +150,7 @@ export default function Goals() {
               <GoalCard
                 key={g.id}
                 g={g}
-                onDelete={() => archive.mutate(g.id)}
+                onDelete={() => handleArchive(g)}
                 onEdit={() => setModal({ initial: g })}
               />
             ))}
@@ -238,6 +246,7 @@ function CatPill({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={[
         "inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors min-h-[36px]",
         active
@@ -255,7 +264,7 @@ function Count({ value, active }: { value: number; active: boolean }) {
   return (
     <span
       className="text-[11px] font-mono"
-      style={{ color: active ? "rgba(26,20,8,0.55)" : "#8a7a60" }}
+      style={{ color: active ? "rgba(26,20,8,0.55)" : "#a89478" }}
     >
       {value}
     </span>
@@ -318,7 +327,7 @@ function GoalCard({
                       border: `1px solid ${cat.color}80`,
                       color: "#f4ecda",
                     }
-                    : { background: "#281e12", color: "#5a4d39" }
+                    : { background: "#281e12", color: "#9c8a6e" }
                 }
                 title={WEEKDAY_LABELS[i]}
               >
@@ -342,14 +351,14 @@ function GoalCard({
       <div className="flex flex-col lg:flex-row gap-1 lg:gap-1.5">
         <button
           onClick={onEdit}
-          className="w-9 h-9 grid place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-text hover:border-border border border-transparent transition-colors"
+          className="w-11 h-11 grid place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-text hover:border-border border border-transparent transition-colors"
           aria-label={`Editar ${g.name}`}
         >
           <Pencil size={14} />
         </button>
         <button
           onClick={onDelete}
-          className="w-9 h-9 grid place-items-center rounded-lg text-muted hover:text-rough hover:border-rough/30 border border-transparent transition-colors"
+          className="w-11 h-11 grid place-items-center rounded-lg text-muted hover:text-rough hover:border-rough/30 border border-transparent transition-colors"
           aria-label={`Arquivar ${g.name}`}
         >
           <Trash2 size={14} />
@@ -446,9 +455,16 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar meta…"
-              className="flex-1 bg-transparent border-0 outline-none text-[13px] text-text placeholder:text-dim"
+              aria-label="Buscar meta na biblioteca"
+              className="flex-1 bg-transparent border-0 outline-none text-[16px] text-text placeholder:text-dim"
             />
           </div>
+
+          {create.isError && (
+            <p className="text-sm text-rough mb-3" role="alert">
+              {(create.error as Error).message}
+            </p>
+          )}
 
           <div className="lg:max-h-[calc(100vh-260px)] lg:overflow-y-auto">
             {CATEGORIES.map((cat) => {
@@ -472,12 +488,10 @@ function Library({ activeNames }: { activeNames: Set<string> }) {
                       <button
                         key={p.name}
                         onClick={() => !added && addPreset(p)}
-                        disabled={added}
+                        disabled={added || create.isPending}
                         className={[
-                          "w-full flex items-center gap-2.5 p-2 mb-1.5 rounded-lg border bg-bg-2 transition-colors text-left",
-                          added
-                            ? "border-border opacity-60 cursor-default"
-                            : "border-border hover:bg-surface hover:border-border-2",
+                          "w-full flex items-center gap-2.5 p-2 mb-1.5 rounded-lg border bg-bg-2 transition-colors text-left disabled:opacity-60 disabled:cursor-default",
+                          added ? "border-border" : "border-border hover:bg-surface hover:border-border-2",
                         ].join(" ")}
                       >
                         <span
@@ -533,6 +547,8 @@ function GoalModal({
   const create = useCreateGoal();
   const update = useUpdateGoal();
   const isEdit = !!initial;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = "goal-modal-title";
 
   const [name, setName] = useState(initial?.name ?? "");
   const [category, setCategory] = useState<GoalCategory>(initial?.category ?? "health");
@@ -541,6 +557,10 @@ function GoalModal({
 
   const valid = name.trim().length > 0 && days.length > 0;
   const cat = CATEGORY_META[category];
+  const saving = create.isPending || update.isPending;
+  const saveError = (create.error ?? update.error) as Error | null;
+
+  useModalA11y(panelRef, onClose);
 
   function toggleDay(i: number) {
     setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
@@ -548,23 +568,27 @@ function GoalModal({
 
   async function submit() {
     if (!valid) return;
-    if (isEdit && initial) {
-      await update.mutateAsync({
-        ...initial,
-        name: name.trim(),
-        category,
-        weight,
-        days_of_week: days,
-      });
-    } else {
-      await create.mutateAsync({
-        name: name.trim(),
-        category,
-        weight,
-        days_of_week: days,
-      } as Omit<Goal, "id" | "archived_at">);
+    try {
+      if (isEdit && initial) {
+        await update.mutateAsync({
+          ...initial,
+          name: name.trim(),
+          category,
+          weight,
+          days_of_week: days,
+        });
+      } else {
+        await create.mutateAsync({
+          name: name.trim(),
+          category,
+          weight,
+          days_of_week: days,
+        } as Omit<Goal, "id" | "archived_at">);
+      }
+      onSaved();
+    } catch {
+      // erro já exposto via create.error/update.error
     }
-    onSaved();
   }
 
   return (
@@ -573,7 +597,12 @@ function GoalModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="relative w-full max-w-[540px] max-h-[90vh] flex flex-col rounded-[20px] border border-border-2 overflow-hidden"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative w-full max-w-[540px] max-h-[90vh] flex flex-col rounded-[20px] border border-border-2 overflow-hidden outline-none"
         style={{
           background: "linear-gradient(180deg, #1e170e, #16110a)",
           boxShadow: "0 50px 100px -20px rgba(0,0,0,0.8)",
@@ -582,13 +611,13 @@ function GoalModal({
         <button
           onClick={onClose}
           aria-label="Fechar"
-          className="absolute top-4 right-4 w-8 h-8 grid place-items-center rounded-lg bg-surface-3 border border-border text-text-2 hover:text-text"
+          className="absolute top-3 right-3 w-11 h-11 grid place-items-center rounded-lg bg-surface-3 border border-border text-text-2 hover:text-text"
         >
           <X size={16} />
         </button>
 
         <header className="px-7 pt-6 pb-4 border-b border-border">
-          <h2 className="display text-[26px] uppercase leading-none">
+          <h2 id={titleId} className="display text-[26px] uppercase leading-none">
             {isEdit ? "Editar" : "Nova"} <span className="text-primary">meta</span>
           </h2>
           <p className="text-xs text-text-2 mt-1">Defina sua próxima missão diária</p>
@@ -602,7 +631,7 @@ function GoalModal({
             </label>
             <input
               id="goal-name"
-              className="input !text-[15px]"
+              className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Treinar 45min, Ler antes de dormir…"
@@ -612,10 +641,10 @@ function GoalModal({
 
           {/* Category */}
           <div>
-            <span className="label">
+            <span className="label" id="goal-category-label">
               Categoria <span className="text-rough">*</span>
             </span>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2" role="group" aria-labelledby="goal-category-label">
               {CATEGORIES.map((c) => {
                 const m = CATEGORY_META[c];
                 const active = category === c;
@@ -624,6 +653,7 @@ function GoalModal({
                     key={c}
                     type="button"
                     onClick={() => setCategory(c)}
+                    aria-pressed={active}
                     className="flex items-center gap-2.5 px-3 py-3 rounded-lg border transition-colors text-left min-h-[52px]"
                     style={
                       active
@@ -654,10 +684,10 @@ function GoalModal({
 
           {/* Importance */}
           <div>
-            <span className="label">
+            <span className="label" id="goal-weight-label">
               Importância <span className="text-rough">*</span>
             </span>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-labelledby="goal-weight-label">
               {([1, 2, 3] as const).map((w) => {
                 const active = weight === w;
                 const color = w === 3 ? "#f5b528" : w === 2 ? "#6aa7e8" : "#8ad36b";
@@ -671,6 +701,7 @@ function GoalModal({
                     key={w}
                     type="button"
                     onClick={() => setWeight(w)}
+                    aria-pressed={active}
                     className="flex flex-col items-start gap-1.5 px-3 py-3 rounded-lg border min-h-[64px] transition-all"
                     style={
                       active
@@ -706,7 +737,7 @@ function GoalModal({
 
           {/* Days */}
           <div>
-            <span className="label">
+            <span className="label" id="goal-days-label">
               Dias da semana <span className="text-rough">*</span>
             </span>
             <div className="flex gap-1.5 mb-2 flex-wrap">
@@ -721,7 +752,8 @@ function GoalModal({
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
+            {/* flex-wrap + basis: reflow em duas linhas quando 7×44px não cabe (ex: 360px) */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="goal-days-label">
               {WEEKDAY_LABELS.map((d, i) => {
                 const on = days.includes(i);
                 return (
@@ -729,7 +761,9 @@ function GoalModal({
                     key={d}
                     type="button"
                     onClick={() => toggleDay(i)}
-                    className="flex flex-col items-center gap-0.5 py-3 rounded-lg border text-[12px] uppercase tracking-[0.06em] font-semibold transition-colors min-h-[42px]"
+                    aria-pressed={on}
+                    aria-label={d}
+                    className="flex-1 basis-11 min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-lg border text-[12px] uppercase tracking-[0.06em] font-semibold transition-colors"
                     style={
                       on
                         ? {
@@ -737,7 +771,7 @@ function GoalModal({
                           borderColor: "#f5b528",
                           color: "#f5b528",
                         }
-                        : { background: "#110d08", borderColor: "#2a1f12", color: "#8a7a60" }
+                        : { background: "#110d08", borderColor: "#2a1f12", color: "#a89478" }
                     }
                   >
                     {d}
@@ -749,6 +783,12 @@ function GoalModal({
               {days.length}/7 dias selecionados
             </div>
           </div>
+
+          {saveError && (
+            <p className="text-sm text-rough" role="alert">
+              {saveError.message}
+            </p>
+          )}
         </div>
 
         <footer className="px-7 py-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
@@ -770,15 +810,11 @@ function GoalModal({
             <button
               type="button"
               onClick={submit}
-              disabled={!valid || create.isPending || update.isPending}
+              disabled={!valid || saving}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: cat.color, borderColor: cat.color }}
             >
-              {create.isPending || update.isPending
-                ? "Salvando…"
-                : isEdit
-                  ? "Salvar alterações"
-                  : "Adicionar meta →"}
+              {saving ? "Salvando…" : isEdit ? "Salvar alterações" : "Adicionar meta →"}
             </button>
           </div>
         </footer>

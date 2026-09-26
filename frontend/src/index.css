@@ -17,7 +17,8 @@
     background-image: theme("backgroundImage.warm-radial");
     background-attachment: fixed;
     font-family: "Inter", system-ui, sans-serif;
-    font-size: 14px;
+    /* mínimo 16px pra texto corrido no mobile (evita zoom automático no iOS) */
+    font-size: 16px;
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
   }
@@ -93,7 +94,7 @@
   /* ───────── Inputs ───────── */
   .input {
     @apply w-full rounded-lg bg-bg-2 border border-border px-3.5 py-3 min-h-[44px]
-           text-text placeholder:text-dim text-[15px] outline-none transition-colors;
+           text-text placeholder:text-dim text-[16px] outline-none transition-colors;
   }
   .input:focus { border-color: theme("colors.primary"); }
   .label {

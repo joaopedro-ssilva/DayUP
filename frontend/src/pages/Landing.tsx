@@ -31,7 +31,7 @@ function Nav() {
   return (
     <nav
       className="fixed top-0 inset-x-0 z-50 flex items-center gap-4 lg:gap-7 px-5 lg:px-10 py-4 lg:py-4.5 backdrop-blur-md border-b border-transparent"
-      style={{ background: "rgba(11,9,7,0.7)" }}
+      style={{ background: "rgba(11,9,7,0.7)", paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}
     >
       <Link to="/" className="brand text-[20px] lg:text-[22px]">
         <span className="brand-flame">▲</span>

@@ -25,7 +25,10 @@ export default function AppShell() {
   return (
     <div className="min-h-dvh overflow-x-hidden">
       {/* Top bar — both mobile and desktop, but tabs only show on desktop */}
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-bg/70 border-b border-border">
+      <header
+        className="sticky top-0 z-30 backdrop-blur-md bg-bg/70 border-b border-border"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="flex items-center gap-4 lg:gap-7 px-4 lg:px-7 py-3 lg:py-3.5 max-w-[1280px] mx-auto">
           <NavLink to="/app" className="brand text-[20px] lg:text-[22px]">
             <span className="brand-flame">▲</span>

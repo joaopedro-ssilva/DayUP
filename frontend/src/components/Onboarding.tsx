@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChartLine,
   ChevronLeft,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { useMarkOnboardingSeen } from "@/lib/queries";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 type Step = {
   icon: LucideIcon;
@@ -63,15 +64,7 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
     }
   }
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") dismiss();
-    }
-    document.addEventListener("keydown", onKey);
-    panelRef.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useModalA11y(panelRef, dismiss);
 
   const Step = STEPS[step].icon;
 
@@ -97,12 +90,12 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
         <button
           onClick={dismiss}
           aria-label="Pular onboarding"
-          className="absolute top-4 right-4 w-9 h-9 grid place-items-center rounded-lg bg-surface-3 border border-border text-text-2 hover:text-text z-10"
+          className="absolute top-3 right-3 w-11 h-11 grid place-items-center rounded-lg bg-surface-3 border border-border text-text-2 hover:text-text z-10"
         >
           <X size={16} />
         </button>
 
-        <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 py-12 sm:py-10 text-center">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-6 sm:px-10 py-12 sm:py-10 text-center">
           <div
             className="w-16 h-16 rounded-2xl grid place-items-center mb-6"
             style={{
@@ -128,7 +121,7 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
           </p>
         </div>
 
-        <footer className="px-6 sm:px-7 py-5 border-t border-border flex items-center justify-between gap-3">
+        <footer className="shrink-0 px-6 sm:px-7 py-5 border-t border-border flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -139,7 +132,7 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
             <ChevronLeft size={18} />
           </button>
 
-          <div className="flex gap-1.5" role="tablist" aria-label="Passo">
+          <div className="flex" role="tablist" aria-label="Passo">
             {STEPS.map((_, i) => (
               <button
                 key={i}
@@ -147,12 +140,17 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
                 onClick={() => setStep(i)}
                 aria-label={`Ir para passo ${i + 1}`}
                 aria-current={i === step ? "step" : undefined}
-                className="h-1.5 rounded-full transition-all"
-                style={{
-                  width: i === step ? 24 : 8,
-                  background: i === step ? "#f5b528" : "#3a2c1a",
-                }}
-              />
+                className="w-11 h-11 grid place-items-center shrink-0"
+              >
+                <span
+                  className="h-1.5 rounded-full transition-all"
+                  style={{
+                    width: i === step ? 24 : 8,
+                    background: i === step ? "#f5b528" : "#3a2c1a",
+                  }}
+                  aria-hidden
+                />
+              </button>
             ))}
           </div>
 
@@ -177,7 +175,10 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
           )}
         </footer>
 
-        <div className="text-center pb-4">
+        <div
+          className="text-center pb-4 shrink-0"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
+        >
           <button
             type="button"
             onClick={dismiss}

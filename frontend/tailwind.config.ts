@@ -14,8 +14,10 @@ export default {
         "border-2": "#3a2c1a",
         text: "#f4ecda",
         "text-2": "#c9bd9f",
-        muted: "#8a7a60",
-        dim: "#5a4d39",
+        // Ajustados pra manter contraste >=4.5:1 contra as superfícies do app
+        // (eram #8a7a60 / #5a4d39 — falhavam contra surface-3 #281e12).
+        muted: "#a89478",
+        dim: "#9c8a6e",
         primary: "#f5b528",
         "primary-2": "#ffc94a",
         amber: "#c68410",
