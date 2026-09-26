@@ -42,6 +42,28 @@ def test_create_read_delete_session_roundtrip():
     assert read_session(session_id) is None
 
 
+def test_read_legacy_session_indexes_it_for_revocation():
+    settings = get_settings()
+    r = _get_redis()
+    user_id = _rand_user_id()
+    session_id = uuid.uuid4().hex
+    session_key = f"dayup:sess:{session_id}"
+    index_key = f"dayup:user-sess:{user_id}"
+    try:
+        r.set(session_key, user_id, ex=settings.session_max_age_seconds)
+        assert not r.exists(index_key)
+        assert read_session(session_id) == user_id
+        assert r.sismember(index_key, session_id)
+        assert 0 < r.ttl(index_key) <= settings.session_max_age_seconds
+        r.expire(index_key, 60)
+        assert read_session(session_id) == user_id
+        assert 0 < r.ttl(index_key) <= 60
+        revoke_user_sessions(user_id)
+        assert r.get(session_key) is None
+    finally:
+        r.delete(session_key, index_key)
+
+
 def test_revoke_user_sessions_keeps_excepted_session():
     settings = get_settings()
     user_id = _rand_user_id()
@@ -180,13 +202,13 @@ def test_goal_entry_accepts_naive_done_at():
     assert entry.done_at == time(10, 0)
 
 
-def test_day_update_rejects_more_than_sixty_entries():
-    entries = [{"goal_id": str(uuid.uuid4()), "level": 1.0} for _ in range(61)]
+def test_day_update_rejects_more_than_two_hundred_entries():
+    entries = [{"goal_id": str(uuid.uuid4()), "level": 1.0} for _ in range(201)]
     with pytest.raises(ValidationError):
         DayUpdateIn(entries=entries)
 
 
-def test_day_update_accepts_exactly_sixty_entries():
-    entries = [{"goal_id": str(uuid.uuid4()), "level": 1.0} for _ in range(60)]
+def test_day_update_accepts_exactly_two_hundred_entries():
+    entries = [{"goal_id": str(uuid.uuid4()), "level": 1.0} for _ in range(200)]
     payload = DayUpdateIn(entries=entries)
-    assert len(payload.entries) == 60
+    assert len(payload.entries) == 200

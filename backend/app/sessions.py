@@ -59,9 +59,20 @@ def read_session(session_id: str | None) -> str | None:
     """Retorna o user_id se a sessão existir e estiver válida, senão None."""
     if not session_id:
         return None
-    value = _get_redis().get(_key(session_id))
+    r = _get_redis()
+    value = r.get(_key(session_id))
     # Com decode_responses=True o tipo é str ou None.
-    return value if isinstance(value, str) else None
+    if not isinstance(value, str):
+        return None
+    from app.config import get_settings
+
+    # Inclui sessões antigas no índice sem prolongar seu TTL a cada leitura.
+    index_key = _user_index_key(value)
+    with r.pipeline() as pipe:
+        pipe.sadd(index_key, session_id)
+        pipe.expire(index_key, get_settings().session_max_age_seconds, nx=True)
+        pipe.execute()
+    return value
 
 
 def delete_session(session_id: str | None) -> None:

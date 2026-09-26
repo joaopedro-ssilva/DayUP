@@ -168,7 +168,7 @@ class DayUpdateIn(BaseModel):
 
     mood: str | None = None
     note: Annotated[str | None, Field(max_length=1000)] = None
-    entries: Annotated[list[GoalEntryIn], Field(max_length=60)] = []
+    entries: Annotated[list[GoalEntryIn], Field(max_length=200)] = []
 
     @field_validator("mood")
     @classmethod
