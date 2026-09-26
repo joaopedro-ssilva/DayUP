@@ -52,7 +52,7 @@ Um dia pode ser registrado até o fim do dia seguinte sem quebrar o streak, e co
 - Perfil: alterar nome, e-mail e senha; **exportar meus dados** (JSON) e **excluir conta**
 - Mobile-first: pensado primeiro para o navegador do celular (360–390px) e **instalável na tela inicial** (PWA)
 
-**Ainda não implementado:** recuperação de senha e verificação de e-mail (dependem de um serviço de e-mail) e notificações de lembrete. Veja o [roadmap](#roadmap).
+**Em breve:** recuperação de senha e verificação de e-mail (dependem de um serviço de e-mail) e notificações de lembrete. Veja o [roadmap](#roadmap).
 
 ## Arquitetura
 
@@ -166,6 +166,6 @@ docs/             slides da apresentação e imagens
 
 ## Sobre o projeto
 
-O Day UP nasceu como projeto da disciplina **Projeto de Desenvolvimento I** (SENAC, 2026), feito por **João Pedro Silva** e **Felipe Noguez**. Os [slides da apresentação](docs/presentation/) contam a visão original do produto.
+O Day UP nasceu como projeto da disciplina **Projeto de Desenvolvimento I** (SENAC, 2026). Os [slides da apresentação](docs/presentation/) contam a visão original do produto.
 
 O histórico de commits começa curto por dois motivos: durante o semestre o código era versionado em blocos grandes, e parte do histórico se perdeu na migração entre GitHub e o GitLab exigido pela faculdade. Desde a publicação, o desenvolvimento segue com commits pequenos e focados, revisados pelo CI.
