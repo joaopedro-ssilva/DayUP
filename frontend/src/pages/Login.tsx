@@ -26,6 +26,7 @@ export default function Login() {
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showResetNotice, setShowResetNotice] = useState(false);
 
   const redirectTo = safeRedirect((location.state as { from?: unknown } | null)?.from, "/app");
 
@@ -54,6 +55,30 @@ export default function Login() {
           onChange={setPassword}
           autoComplete="current-password"
         />
+        {/* Recuperação por e-mail ainda depende de um serviço de e-mail. */}
+        <div className="flex justify-end -mt-1">
+          <button
+            type="button"
+            onClick={() => setShowResetNotice((v) => !v)}
+            aria-expanded={showResetNotice}
+            aria-controls="reset-notice"
+            className="inline-flex items-center min-h-[44px] -my-2 text-sm text-text-2 hover:text-primary"
+          >
+            Esqueci minha senha
+          </button>
+        </div>
+        {showResetNotice && (
+          <p
+            id="reset-notice"
+            role="status"
+            className="text-sm text-text-2 bg-surface-2 border border-border rounded-lg px-3.5 py-3"
+          >
+            <span className="mr-2 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+              Em breve
+            </span>
+            A recuperação de senha por e-mail está chegando.
+          </p>
+        )}
         {login.isError && (
           <p className="text-sm text-rough" role="alert">{(login.error as Error).message}</p>
         )}
