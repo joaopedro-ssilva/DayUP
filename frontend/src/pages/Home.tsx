@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { CalendarDays, ChevronRight, Flame, Star, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import DayRow, { MissedRow, PendingRow } from "@/components/DayRow";
+import DayRow, { MissedRangeRow, MissedRow, PendingRow } from "@/components/DayRow";
 import DayDetailModal from "@/components/DayDetailModal";
 import Onboarding from "@/components/Onboarding";
 import RemindBanner from "@/components/RemindBanner";
@@ -21,6 +21,37 @@ import { useDayLogs, useGoals, useMe, useStats } from "@/lib/queries";
 import type { DayLog, Goal, Stats } from "@/lib/types";
 
 const REMINDER_KEY = (userId: string, date: string) => `dayup:reminder-dismissed:${userId}:${date}`;
+
+type CalendarRow =
+  | { kind: "day"; date: string }
+  | { kind: "gap"; date: string; oldest: string; count: number };
+
+// UTC aqui representa datas civis, sem variações de duração por horário de verão.
+function shiftDate(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function calendarRows(storedDates: string[], oldest: string | undefined, today: string, yesterday: string): CalendarRow[] {
+  if (!oldest || oldest > today) return [];
+  const anchors = [...new Set([today, yesterday, ...storedDates])]
+    .filter((date) => date >= oldest && date <= today)
+    .sort().reverse();
+  const rows: CalendarRow[] = [];
+  for (let i = 0; i < anchors.length; i += 1) {
+    const date = anchors[i];
+    rows.push({ kind: "day", date });
+    const newestGap = shiftDate(date, -1);
+    const oldestGap = anchors[i + 1] ? shiftDate(anchors[i + 1], 1) : oldest;
+    const count = (Date.parse(`${newestGap}T00:00:00Z`) - Date.parse(`${oldestGap}T00:00:00Z`)) / 86_400_000 + 1;
+    if (count >= 3) rows.push({ kind: "gap", date: newestGap, oldest: oldestGap, count });
+    else if (count > 0) {
+      for (const missing of dateRangeDesc(oldestGap, newestGap)) rows.push({ kind: "day", date: missing });
+    }
+  }
+  return rows;
+}
 
 export default function Home() {
   const me = useMe();
@@ -52,9 +83,16 @@ export default function Home() {
   const createdLocalDate = me.data ? toLocalDateString(new Date(me.data.created_at)) : undefined;
   // Se ainda há mais páginas pra carregar, só sabemos com certeza que não há
   // lacunas até a data mais antiga já buscada. Se acabou o histórico, dá pra
-  // sintetizar até a data de criação da conta.
-  const oldestBoundary = logs.hasNextPage ? oldestLoadedDate : (createdLocalDate ?? oldestLoadedDate);
-  const allDates = oldestBoundary ? dateRangeDesc(oldestBoundary, today) : [];
+  // sintetizar até a criação da conta, preservando registros anteriores a ela.
+  const oldestBoundary = logs.hasNextPage ? oldestLoadedDate :
+    createdLocalDate && oldestLoadedDate ?
+      (createdLocalDate < oldestLoadedDate ? createdLocalDate : oldestLoadedDate) :
+      (createdLocalDate ?? oldestLoadedDate);
+  // Uma lacuna vira um intervalo; não percorremos todos os dias de contas antigas.
+  const calendar = useMemo(
+    () => calendarRows([...storedByDate.keys()], oldestBoundary, today, yesterday),
+    [storedByDate, oldestBoundary, today, yesterday],
+  );
 
   const todayLog = storedByDate.get(today);
 
@@ -113,13 +151,17 @@ export default function Home() {
         <span className="text-xs text-muted">{allLogs.length} registrados</span>
       </div>
 
-      {/* Day list — hoje sempre no topo, depois um card por dia até o limite carregado */}
+      {/* Hoje no topo; lacunas longas ficam recolhidas. */}
       <div className="flex flex-col gap-2">
         {logs.isLoading && <SkeletonRows />}
 
-        {!logs.isLoading && allDates.length === 0 && <Empty />}
+        {!logs.isLoading && calendar.length === 0 && <Empty />}
 
-        {allDates.map((date) => {
+        {calendar.map((row) => {
+          const { date } = row;
+          if (row.kind === "gap") {
+            return <MissedRangeRow key={date} oldest={row.oldest} newest={date} count={row.count} />;
+          }
           const stored = storedByDate.get(date);
           const isToday = date === today;
 

@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { Clock, Coffee, CircleAlert } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { ChevronDown, Clock, Coffee, CircleAlert } from "lucide-react";
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
-import { formatDate, formatScore, weekdayShort } from "@/lib/format";
+import { dateRangeDesc, formatDate, formatScore, weekdayShort } from "@/lib/format";
 import { CATEGORY_META, TIER_META, tierFromScore, type DayLog, type Goal } from "@/lib/types";
 
 type Props = {
@@ -231,6 +231,42 @@ export function DayOffRow({
         <Coffee size={20} />
       </div>
     </RowShell>
+  );
+}
+
+export function MissedRangeRow({ oldest, newest, count }: { oldest: string; newest: string; count: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const id = useId();
+  // Só materializa os dias quando o usuário pede para expandir.
+  const dates = useMemo(() => expanded ? dateRangeDesc(oldest, newest) : [], [expanded, oldest, newest]);
+  const sameMonth = oldest.slice(0, 7) === newest.slice(0, 7);
+  const options: Intl.DateTimeFormatOptions = {
+    day: "2-digit", month: "short",
+    ...(oldest.slice(0, 4) !== newest.slice(0, 4) ? { year: "numeric" } : {}),
+  };
+  const range = `${sameMonth ? oldest.slice(8) : formatDate(oldest, options)} – ${formatDate(newest, options)}`;
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={id}
+        onClick={() => setExpanded((prev) => !prev)}
+        className="w-full text-left grid grid-cols-[6px_1fr_auto] bg-surface border border-border rounded-card overflow-hidden opacity-80 hover:opacity-100 hover:border-border-2 transition-all"
+      >
+        <span className="bg-rough" />
+        <span className="p-3.5 flex flex-col gap-1">
+          <span className="display text-base uppercase leading-none text-rough">⚠️ {count} dias sem registro</span>
+          <span className="text-xs text-text-2">{range}</span>
+        </span>
+        <span className="grid place-items-center px-5 text-rough">
+          <ChevronDown size={20} className={expanded ? "rotate-180" : ""} />
+        </span>
+      </button>
+      <div id={id} hidden={!expanded} className={expanded ? "flex flex-col gap-2" : undefined}>
+        {dates.map((date) => <MissedRow key={date} date={date} />)}
+      </div>
+    </>
   );
 }
 
