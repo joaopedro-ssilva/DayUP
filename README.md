@@ -4,7 +4,7 @@
 
 Acompanhamento de rotina diária com metas ponderadas, score de 0 a 100 por dia e um histórico no formato de "histórico de partidas" (inspirado no OP.GG e no DeepLoL).
 
-**[dayup.biigstudio.com.br](https://dayup.biigstudio.com.br)** · conta demo: `demo@dayup.app` / `demo1234`
+**[dayup.biigstudio.com.br](https://dayup.biigstudio.com.br)**
 
 [![CI](https://github.com/joaopedro-ssilva/DayUP/actions/workflows/ci.yml/badge.svg)](https://github.com/joaopedro-ssilva/DayUP/actions/workflows/ci.yml)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
